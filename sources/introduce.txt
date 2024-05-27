@@ -1,0 +1,1 @@
+直接替换pip安装好的pykinectv2安装包

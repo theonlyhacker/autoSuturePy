@@ -1,0 +1,5 @@
+# ignore this files
+# add the required packages to requirements.txt
+# pipreqs . --encoding=utf8 --force
+/pth/
+/data/
