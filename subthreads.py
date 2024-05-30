@@ -171,54 +171,6 @@ class DevMsge(ctypes.Structure):
                 ("y", ctypes.c_float),
                 ("z", ctypes.c_float)]
 
-# 该线程用于缝合到最高点，更新路径规划区域显示
-class showWoundPathPlanning(QThread):
-    finished_signal = pyqtSignal()
-    image_data_ready = pyqtSignal(object)
-
-    def __init__(self,main_thread):
-        super().__init__()
-        self.main_thread = main_thread
-        self.kinect = main_thread.kinect
-        self.status_flag = True
-        self.finished_signal.connect(self.stop)
-
-    def run(self):
-        first_non_empty_image = True
-        count = 1
-        while self.status_flag:
-            # print(f"在结束前这是第{count}次循环")
-            count+=1
-            colorImg,depthImg = self.kinect.get_frames()
-            if colorImg is not None and first_non_empty_image:
-                print("进入渲染子程序------")
-                colorImg = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
-                # roi区域  
-                # x,y,w,h= self.main_thread.img_roi[0],self.main_thread.img_roi[1],self.main_thread.img_roi[2],self.main_thread.img_roi[3]
-                roi_img = colorImg[y:y+h, x:x+w].copy()
-                # 预测分割图像效果
-                predict = predictImg()
-                pred = predict.predict_img(roi_img)
-                # 获取预测的伤口边缘数据
-                scale_img = self.kinect.get_predict_wound_edge(pred)
-                # scale_img = cv2.resize(img_data, (480, 270))
-                height, width = scale_img.shape
-                bytes_per_line = width
-                q_image = QImage(scale_img.data, width, height,bytes_per_line, QImage.Format_Grayscale8)
-                # 在 QLabel 中显示图像，并保持原比例
-                self.main_thread.label_suturePoint.setPixmap(
-                    QPixmap.fromImage(
-                        q_image.scaled(self.main_thread.label_suturePoint.size(), 
-                                       aspectRatioMode=Qt.KeepAspectRatio)))
-                self.finished_signal.emit()
-                first_non_empty_image = False
-                print("更新路径规划区域显示run方法执行完成")
-                
-    def stop(self):
-        self.status_flag = False
-        print("高处更新规划路径视觉子线程结束")
-        self.terminate()
-
 # 更新显示区域子线程-包括缝合到顶点规划显示
 class show_roi_thread(QThread):
     show_status_signal = pyqtSignal(int)
@@ -285,7 +237,7 @@ class show_roi_thread(QThread):
                 elif self.show_status == 2:
                     # 这个阶段要一边渲染一边判断状态
                     self.count += 1
-                    print(f"此次判断次数为{self.count}")
+                    # print(f"此次判断次数为{self.count}")
                     image = cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB)# 图像预处理转换
                     if self.count % 2 == 0: #每两次预测渲染一次roi页面
                         scale_img = roi_img.copy()
@@ -316,6 +268,8 @@ class show_roi_thread(QThread):
 
     @pyqtSlot(int)
     def change_show_status(self,status):
+        if hasattr(self,'count'):
+            print(f"状态判断次数: {self.count}")
         # 将切换渲染状态简化为由槽函数与信号，使得程序逻辑更加简单明了，同时经测试实际运行时长并没有明显的增加？
         print(f"进入路径规划渲染槽函数,status: {status}")
         self.show_status = status
@@ -455,26 +409,34 @@ class WorkThread(QThread):
         # self.rm65.pDll.Movec_Cmd(self.rm65.nSocket,temp_point, point, 20, 0, 0, 1)# 后面就圆弧运动
         # --备注，圆弧运动不满足要求，因为曲率太大，近乎正圆，时间太长了
         data_file_path = "data\\data\\May\\5-21\\movej_P\\"
-        with open(data_file_path+"test_5.txt", 'a', newline='') as txtfile:
+        point_index = 1
+        ret = 0
+        with open(data_file_path+"test_update.txt", 'a', newline='') as txtfile:
             for index, point in enumerate(self.points): # 机械臂运动show_wound_path_signal
                 self.show_kinect_thread.show_status_signal.emit(1)
                 self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
+                print(f"到达第{point_index}个运动点")
+                point_index+=1
                 # 开始缝合
                 motor_signal = motorRun()
                 if motor_signal == "motor_run_successful":
                     print("缝合完成，开始抬升")# 圆弧行运动模块--是标准园还是曲线部分？看具体运动效果
                     temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
-                    temp_point.pz = (21 - index * 0.3) * 0.01 + temp_point.pz
+                    temp_point.pz = (21 - index * 1.3) * 0.01 + temp_point.pz
                     temp_point.px -= 0.005
                     if index==0:
-                        self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                        ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
                     else:
                         # 第一针之后的缝合，需要启动状态判断子线程，进行状态判断
                         self.show_kinect_thread.show_status_signal.emit(2)
                         # print(f"temp_point: {temp_point.px},py:{temp_point.py},pz: {temp_point.pz},rx:{temp_point.rx},ry:{temp_point.ry},rz:{temp_point.rz}")
                         # print(f"goal_point: {point.px},py:{point.py},pz: {point.pz},rx:{point.rx},ry:{point.ry},rz:{point.rz}")
-                        self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
-
+                        ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                    if ret != 0 :
+                        print("第"+str(index)+" 点，该点不可达:" + str(ret))
+                        sys.exit()
+                print(f"到达第{point_index}个运动点")
+                point_index+=1
             self.end_time = time.time()
             txtfile.write(str("50")+"  "+str(self.end_time-self.start_time)+str("")+'\n')
             txtfile.flush()
@@ -487,6 +449,7 @@ class WorkThread(QThread):
         print("rm65子线程运动完成,结束子线程")
         if  hasattr(self.main_thread, 'timer_pos'):
             print("结束实时位姿展示线程")
+            # 定时器的启动和暂停不能跨线程，所以该命令报错
             self.main_thread.timer_pos.stop()
         self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)
         sys.exit()

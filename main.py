@@ -93,14 +93,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     #  高点记录按钮--记录当前伤口信息，伤口2d信息，三维点云信息，压力传感器信息，提起来的高度差
     def on_kinect_pressure(self):
-        # ------------- 测试高点刷新图像显示区域
-        # showWound = showWoundPathPlanning(self)
-        # showWound.start()
-        # print("success into 高点记录-点击按钮")
-        # time.sleep(1)
-        # showWound.stop()
-        # return
-
         # 用于到最高点停止收集抬起阶段的图像和传感器数据子线程
         self.img_thread.stop()
         # 输出相关信息
@@ -155,7 +147,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             print("Timeout occurred while waiting for complete data.")
         # 关闭串口
-        ser.close()
+        # ser.close()
+        
         # 示教模式下每次缝合都需要将当前位置记录下来，并且需要同步记录此时相机图像，压力传感器等多个数据源（未开发）
         if hasattr(self, 'teach_flag') and hasattr(self, 'rm65'):
             timestamp = int(time.time())
@@ -174,14 +167,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             glbal_start_time = time.time()
             self.img_thread.start()
 
-
-    def showWoundPathPlanningInit(self,status):
-        if(not status):
-            self.update_img = showWoundPathPlanning(self.kinect)
-            self.update_img.image_data_ready.connect(self.handle_image_data_ready)
-            self.update_img.start()
-            self.showWoundStatus = True
-
     #机械臂初始化（待测试）-参考python-demo3就行，设置工作坐标系啥的 
     # 修改为整个系统的初始化--增加图像显示的初始化以及高处预测轨迹点区域的初始化
     def on_initRM65(self):
@@ -191,11 +176,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             if self.kinect.connect() == None:
                 print("kinect相机初始化失败")
             print("kinect相机初始化成功")
-        # self.timer_img = QTimer(self)
-        # self.timer_img.timeout.connect(self.get_colorImg)
-        # self.timer_img.start(200)  # 设置定时器触发间隔，单位是毫秒
-        # print("kinect相机定时器已启动")   
-        # self.render_roi()
         # 机械臂初始化
         if(not hasattr(self, 'rm65')):
             self.rm65 = RobotConnection("192.168.1.18", 8080)
@@ -247,53 +227,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 初始化显示区域，增加一个定时器用作刷新该区域
         print("系统初始化成功，可以点击运行按钮")
 
-    def render_roi(self):
-        final_img = None  # 用于叠加三张图像的变量
-        count = 0  # 计数器，记录已获取的非空图像数量
-        print("进入展示roi区域以及路径点规划函数,主函数------")
-        while count < 3:  # 直到获取到三张非空图像为止
-            colorImg, depthImg = self.kinect.get_frames()
-            if colorImg is not None:
-                colorImg = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
-                # roi区域
-                # x,y,w,h= self.main_thread.img_roi[0],self.main_thread.img_roi[1],self.main_thread.img_roi[2],self.main_thread.img_roi[3]
-                # roi_img = colorImg[y:y+h, x:x+w].copy()
-                roi_img = cv2.imread("data\\data\\status_train\\4-26-img\\collect_2\\169_roi_1.jpg")
-                # 预测分割图像效果
-                predict = predictImg()
-                pred = predict.predict_img(roi_img)
-                binary_img = np.uint8(pred)
-                
-                # 将二值化图像进行或运算
-                if final_img is None:
-                    final_img = binary_img
-                else:
-                    final_img = final_img | binary_img  # 按位或运算符
-                count += 1
-        # 获取预测的伤口边缘数据
-        final_img = self.kinect.get_predict_wound_edge(final_img)
-        height, width = final_img.shape
-        bytes_per_line = width
-        q_image = QImage(final_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-        # 在 QLabel 中显示图像，并保持原比例
-        self.label_suturePoint.setPixmap(
-            QPixmap.fromImage(
-                q_image.scaled(self.label_suturePoint.size(), 
-                            aspectRatioMode=Qt.KeepAspectRatio)))
-        print("更新路径规划区域完成")
-
-    # def handle_image_data_ready(self, image_data):
-    #     # 在这里处理接收到的图像数据，进行渲染等操作--这样写将图像数据当做信号进行传递
-    #     print("进入mianwindow的渲染图像函数")
-    #     height, width = image_data.shape
-    #     bytes_per_line = width
-    #     q_image = QImage(image_data.data, width, height,bytes_per_line, QImage.Format_Grayscale8)
-    #     # 在 QLabel 中显示图像，并保持原比例
-    #     self.label_suturePoint.setPixmap(
-    #         QPixmap.fromImage(
-    #             q_image.scaled(self.label_suturePoint.size(), 
-    #                 aspectRatioMode=Qt.KeepAspectRatio)))
-    #     # pass
 
     #开始运动按钮 
     def on_runRM65(self):
@@ -316,6 +249,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 x, y, z = points_xyz[0],points_xyz[1],points_xyz[2]
                 # print(points_xyz)
                 point = DevMsg(x*0.001, y*0.001, z*0.001, -3.117, -0.013, -2.917)
+                # point = DevMsg(x*0.001, y*0.001, z*0.001, -3.120, -0.041, -2.719)
                 points.append(point)
 
         self.work_thread = WorkThread(self,points)
