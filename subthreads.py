@@ -17,7 +17,8 @@ from PIL import Image
 import numpy as np
 
 # roi区域--统一在这里进行更改--也可以用信号和槽的方式进行传递？？？
-x,y,w,h = 1255,677,180,40
+# x,y,w,h = 1255,677,180,40
+x,y,w,h = 1264,720,188,55
 # Lookup table for CRC calculation
 aucCRCHi = [
     0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
@@ -248,22 +249,22 @@ class show_roi_thread(QThread):
                         self.main_thread.label_img.setScaledContents(True)
                     image = Image.fromarray(image)# 将图像转换为 PIL 图像
                     image1 = transform(image) #将图像转成张量
-                    predict_status_result = predict_status(model=self.model,image=image1) # 预测图像
+                    # predict_status_result = predict_status(model=self.model,image=image1) # 预测图像
                     # print(f"currrent status predict : {predict_status_result}")
                     # 判断预测结果
-                    if predict_status_result == 1:
-                        consecutive_ones_count += 1
-                    else:
-                        consecutive_ones_count = 0
+                    # if predict_status_result == 1:
+                    #     consecutive_ones_count += 1
+                    # else:
+                    #     consecutive_ones_count = 0
                     # 如果连续三次预测结果为1，则执行停止指令
                     # if consecutive_ones_count >= 2:
                     #     print("预测结果为：",predict_status_result) 
-                    #     print("达到阈值，发射停止机械臂运动信号")
+                    #     print("达到阈值，发射停止机械臂运动信号--机械臂抬升停止--由状态模型判断")
                     #     consecutive_ones_count = 0
                     #     self.count = 0
-                    #     print("机械臂抬升停止--由状态模型判断")
                     #     self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)#停止机械臂运动
-                    #     self.show_down_func()
+                    #     # self.show_down_func()
+                    #     self.change_show_status(1)
         
 
     @pyqtSlot(int)
@@ -406,8 +407,6 @@ class WorkThread(QThread):
         # Movel_Cmd(SOCKHANDLE ArmSocket, POSE pose, byte v, float r, bool block);
         # Movec_Cmd(SOCKHANDLE ArmSocket, POSE pose_via, POSE pose_to, byte v, float r, byte loop, bool block);
         # Movej_P_Cmd(SOCKHANDLE ArmSocket, POSE pose, byte v, float r, bool block);
-        # self.rm65.pDll.Movec_Cmd(self.rm65.nSocket,temp_point, point, 20, 0, 0, 1)# 后面就圆弧运动
-        # --备注，圆弧运动不满足要求，因为曲率太大，近乎正圆，时间太长了
         data_file_path = "data\\data\\May\\5-21\\movej_P\\"
         point_index = 1
         ret = 0
@@ -422,8 +421,11 @@ class WorkThread(QThread):
                 if motor_signal == "motor_run_successful":
                     print("缝合完成，开始抬升")# 圆弧行运动模块--是标准园还是曲线部分？看具体运动效果
                     temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
-                    temp_point.pz = (21 - index * 1.3) * 0.01 + temp_point.pz
+                    temp_point.pz = (21 - index * 1.5) * 0.01 + temp_point.pz
                     temp_point.px -= 0.005
+                    # 订书机模式
+                    # temp_point.pz = (5) * 0.01 + temp_point.pz
+                    # ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
                     if index==0:
                         ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
                     else:

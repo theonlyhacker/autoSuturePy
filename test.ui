@@ -749,8 +749,8 @@ background-color: rgb(255, 0, 0);</string>
    <slot>on_testSuture()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>731</x>
-     <y>424</y>
+     <x>732</x>
+     <y>487</y>
     </hint>
     <hint type="destinationlabel">
      <x>102</x>
@@ -765,8 +765,8 @@ background-color: rgb(255, 0, 0);</string>
    <slot>on_initRM65()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>731</x>
-     <y>181</y>
+     <x>732</x>
+     <y>227</y>
     </hint>
     <hint type="destinationlabel">
      <x>33</x>
@@ -797,8 +797,8 @@ background-color: rgb(255, 0, 0);</string>
    <slot>on_stopRM65()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>959</x>
-     <y>181</y>
+     <x>1099</x>
+     <y>227</y>
     </hint>
     <hint type="destinationlabel">
      <x>465</x>
@@ -813,8 +813,8 @@ background-color: rgb(255, 0, 0);</string>
    <slot>on_teach()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>731</x>
-     <y>364</y>
+     <x>732</x>
+     <y>427</y>
     </hint>
     <hint type="destinationlabel">
      <x>423</x>
@@ -829,8 +829,8 @@ background-color: rgb(255, 0, 0);</string>
    <slot>on_stopTeach()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>959</x>
-     <y>361</y>
+     <x>1089</x>
+     <y>427</y>
     </hint>
     <hint type="destinationlabel">
      <x>345</x>
@@ -846,7 +846,7 @@ background-color: rgb(255, 0, 0);</string>
    <hints>
     <hint type="sourcelabel">
      <x>731</x>
-     <y>541</y>
+     <y>826</y>
     </hint>
     <hint type="destinationlabel">
      <x>62</x>
@@ -861,12 +861,28 @@ background-color: rgb(255, 0, 0);</string>
    <slot>on_kinect_pressure()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>959</x>
-     <y>421</y>
+     <x>1089</x>
+     <y>487</y>
     </hint>
     <hint type="destinationlabel">
      <x>518</x>
      <y>521</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton</sender>
+   <signal>clicked()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>on_stopCurrentRM()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>986</x>
+     <y>314</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>925</x>
+     <y>147</y>
     </hint>
    </hints>
   </connection>
@@ -887,5 +903,6 @@ background-color: rgb(255, 0, 0);</string>
   <slot>on_imgCollectStop()</slot>
   <slot>on_record_pose()</slot>
   <slot>on_kinect_pressure()</slot>
+  <slot>on_stopCurrentRM()</slot>
  </slots>
 </ui>

@@ -56,7 +56,7 @@ class DevMsge(ctypes.Structure):
 # 全局变量，用于保存图像计数 ---仅用作图像采集时的权宜之计
 global_count_colorImg = 1
 glbal_start_time = 0
-x,y,w,h = 1255,677,180,40
+# x,y,w,h = 1255,677,180,40
 class MainWindow(QMainWindow, Ui_MainWindow):
     # 初始化
     def __init__(self):
@@ -242,14 +242,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 启动机械臂运动线程，
         # 串口压力读数线程，因为需要多线程同事使用，因此将创建对象抽离，进行传参
         points = []
-        with open('test.txt', 'r') as file:
-            lines = file.readlines()
+        with open('data\\points\\dingshuji.txt', 'r') as file:
+            lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
-                x, y, z = points_xyz[0],points_xyz[1],points_xyz[2]
-                # print(points_xyz)
-                point = DevMsg(x*0.001, y*0.001, z*0.001, -3.117, -0.013, -2.917)
-                # point = DevMsg(x*0.001, y*0.001, z*0.001, -3.120, -0.041, -2.719)
+                # x, y, z = points_xyz[0],points_xyz[1],points_xyz[2]
+                # point = DevMsg(x*0.001, y*0.001, z*0.001, -3.117, -0.013, -2.917)
+                # cycle point
+                x, y, z, rx,ry,rz = points_xyz[0],points_xyz[1],points_xyz[2],points_xyz[3],points_xyz[4],points_xyz[5]
+                point = DevMsg(x, y, z, rx, ry, rz)
                 points.append(point)
 
         self.work_thread = WorkThread(self,points)
@@ -277,7 +278,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.work_thread = None
     
     # 在自动缝合中暂停该线程
-    def on_stop_current(self):
+    def on_stopCurrentRM(self):
+        # 暂时用于输出机械臂当前位姿
+        print("-------------------")
+        if(not hasattr(self, 'rm65')):
+            self.rm65 = RobotConnection("192.168.1.18", 8080)
+            self.rm65.connect()
+        cur_point = self.rm65.get_currentPose()
+        print(f"{cur_point.px:.6f} {cur_point.py:.6f} {cur_point.pz:.6f} {cur_point.rx:.6f} {cur_point.ry:.6f} {cur_point.rz:.6f}")
         print("暂停按钮--")
 
 
@@ -330,7 +338,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             x,y,w,h= self.img_roi[0],self.img_roi[1],self.img_roi[2],self.img_roi[3]
             roi_img = rgb_img[y:y+h, x:x+w].copy()
             # 保存图像，并更新计数
-            file_name="data\\data\\April\\4-24\\1st\\"
+            file_name="data\\points\\"
             img_name = f"img_{global_count_colorImg}.png" 
             cv2.imwrite(file_name+f"origin_{global_count_colorImg}.png", rgb_img)
             # cv2.imwrite(file_name+img_name, roi_img)

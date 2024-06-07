@@ -388,6 +388,7 @@ class Ui_MainWindow(object):
         self.pushButton_10.clicked.connect(MainWindow.on_stopTeach) # type: ignore
         self.pushButton_11.clicked.connect(MainWindow.on_imgCollect) # type: ignore
         self.pushButton_14.clicked.connect(MainWindow.on_kinect_pressure) # type: ignore
+        self.pushButton.clicked.connect(MainWindow.on_stopCurrentRM) # type: ignore
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
