@@ -198,6 +198,7 @@ class show_roi_thread(QThread):
         transform = transforms.Compose([transforms.ToTensor() ])# 转换为张量
         consecutive_ones_count = 0
         final_img = None  # 用于叠加三张图像的变量
+        origin_img = None
         while self.show_roi_status:
             color,depth = self.kinect.get_frames()
             # 找到的第一张非空图片用来跟新视觉显示区域，其他的用来判断状态
@@ -222,11 +223,27 @@ class show_roi_thread(QThread):
                         final_img = final_img | binary_img  # 按位或运算符
                     # 连续获取三次kinect图像进而进行路径规划--防止单张图像预测效果不好,以或运算，只要预测到的roi区域都渲染
                     consecutive_ones_count +=1
-                    if consecutive_ones_count ==3:
-                        final_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
-                        height, width = final_img.shape
+                    if consecutive_ones_count ==2:
+                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
+                        height, width = multi_pred_img.shape
+                        # 将得到的pred图像扩充为1920x1080大小的图像，然后保存其roi位置信息到本地，然后进行函数拟合得到分段点
+                        # 创建一个白色的图像，大小为1920x1080--由于是二值化图像，因此创建模板是单通道的
+                        final_canvas = np.ones((1080, 1920), dtype=np.uint8) * 255
+                        # cv2.imwrite('data\\points\\test_roi_3d\\wound_shape_data.png', wound_shape_data)
+                        final_canvas[y:y+h, x:x+w] = wound_shape_data
+                        # final_canvas = cv2.bitwise_not(final_canvas)
+                        # cv2.imwrite('data\\points\\test_roi_3d\\final_output.png', final_canvas)# 保存最终图像
+                        # wound_point_3d=self.kinect.search_3dImgIndex(final_canvas)
+                        # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（用转换矩阵之前）
+                        func_data=[]
+                        # with 
+                        # for i in wound_point_3d:
+                            # func_data.append([i[0],i[1]])
+                        # show_programming_points = self.kinect.getRm65RunPoints(func_data)
+                        
+                        # print(func_data)
                         bytes_per_line = width
-                        q_image = QImage(final_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+                        q_image = QImage(multi_pred_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
                         # 在 QLabel 中显示图像，并保持原比例
                         self.main_thread.label_suturePoint.setPixmap(
                             QPixmap.fromImage(
@@ -234,6 +251,7 @@ class show_roi_thread(QThread):
                                             aspectRatioMode=Qt.KeepAspectRatio)))
                         self.show_status = 0
                         consecutive_ones_count = 0
+                        multi_pred_img = None
                         final_img = None
                 elif self.show_status == 2:
                     # 这个阶段要一边渲染一边判断状态
@@ -421,7 +439,7 @@ class WorkThread(QThread):
                 if motor_signal == "motor_run_successful":
                     print("缝合完成，开始抬升")# 圆弧行运动模块--是标准园还是曲线部分？看具体运动效果
                     temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
-                    temp_point.pz = (21 - index * 1.5) * 0.01 + temp_point.pz
+                    temp_point.pz = (21 - index * 1.7) * 0.01 + temp_point.pz
                     temp_point.px -= 0.005
                     # 订书机模式
                     # temp_point.pz = (5) * 0.01 + temp_point.pz

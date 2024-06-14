@@ -9,6 +9,9 @@ from sortedcontainers import SortedSet
 import open3d as o3d
 import ctypes
 import matplotlib.pyplot as plt
+from scipy.interpolate import splprep, splev
+from scipy.spatial.transform import Rotation as R
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 depthSize = 512*424
 
@@ -162,9 +165,8 @@ class KinectCapture:
 
         # 寻找连通域  保存最大连通域内所有点，只有边缘点太少了，这里保存所有点
         _, labels, stats, _ = cv2.connectedComponentsWithStats(binary_img, connectivity=8)
-        # points = []
-        # 获取标签为1的所有像素的坐标
-        y_coords, x_coords = np.where(labels == 1)
+        # 获取标签为0的所有像素的坐标，也就是黑色，白色标签为1
+        y_coords, x_coords = np.where(labels == 0)
         # 将x和y坐标存储在两个数组中
         edgePoints = np.column_stack((x_coords, y_coords))
         print("the wounds area(pixel) size is: ", len(edgePoints))
@@ -198,8 +200,7 @@ class KinectCapture:
             searchPoint = pcl.point_types.PointXYZ()
             # 传进来的是一个roi区域大小的图像，这里原始投影是1920x1080，
             # 但这里的坐标是roi区域的坐标，所以需要转换下，或者在传进来的时候就需要更换
-            # searchPoint.x = edgePoints[i][0][0]
-            # searchPoint.y = edgePoints[i][0][1]
+            # 直接传进来一个1920x1080大小图像，免得roi不同，还需要修改这里的代码--2024.6.13
             searchPoint.x = edgePoints[i][0]
             searchPoint.y = edgePoints[i][1]
             searchPoint.z = 0
@@ -212,16 +213,17 @@ class KinectCapture:
         print("the wounds finally area(pixel) size is: ", len(edgePointIndex2d))
         # 遍历完边缘点索引
         wound_point_3d = []
-        # with open(filename+'camera_space_points.txt', 'w') as f1:
-        #     for i in edgePointIndex2d:
-        #         point = camera_space_points[i]
-        #         wound_point_3d.append([point.x, point.y, point.z])
-        #         # 将点的坐标写入camera_space_points.txt
-        #         f1.write(f"{point[0]} {point[1]} {point[2]}\n")
+        # 测试代码
+        with open('data\\points\\test_roi_3d\\camera_space_points.txt', 'w') as f1:
+            for i in edgePointIndex2d:
+                point = camera_space_points[i]
+                wound_point_3d.append([point[0], point[1], point[2]])
+                # 将点的坐标写入camera_space_points.txt
+                f1.write(f"{point[0]} {point[1]} {point[2]}\n")
 
-        for i in edgePointIndex2d:
-            point = camera_space_points[i]
-            wound_point_3d.append([point[0], point[1], point[2]])
+        # for i in edgePointIndex2d:
+        #     point = camera_space_points[i]
+        #     wound_point_3d.append([point[0], point[1], point[2]])
             # 将点的坐标写入camera_space_points.txt
             # f1.write(f"{point[0]} {point[1]} {point[2]}\n")
         # 保存颜色帧图片
@@ -243,7 +245,7 @@ class KinectCapture:
                 background = np.ones_like(binary_img) * 255
                 # 在背景图像上绘制轮廓
                 cv2.drawContours(background, contours, max_contour_idx, (0, 0, 255), thickness=cv2.FILLED)
-                
+                only_wound_shape = background.copy()
                 # 获取轮廓的中心点
                 contour = contours[max_contour_idx]
                 M = cv2.moments(contour)
@@ -279,37 +281,186 @@ class KinectCapture:
                 for point in segment_points:
                     if 0 <= point[1] < background.shape[0] and 0 <= point[0] < background.shape[1]:
                         background[point[1], point[0]] = 0
-                return background
+                return only_wound_shape,background
             else:
                 return None
             
+    def getRm65RunPoints(data):
+        x = data[:, 0]
+        y = data[:, 1]
+        # 对数据进行排序，确保按照 x 的顺序排列
+        sorted_indices = np.argsort(x)
+        x = x[sorted_indices]
+        y = y[sorted_indices]
+        # 样条插值
+        tck, u = splprep([x, y], s=1)
+        x_new, y_new = splev(np.linspace(0, 1, num=500), tck)
+        # 分段数
+        num_segments = 10
+        segment_length = len(x_new) // num_segments
+        # 计算每段的中心点
+        center_points = []
+        for i in range(num_segments):
+            mid_index = i * segment_length + segment_length // 2
+            center_points.append([x_new[mid_index], y_new[mid_index]])
+        center_points = np.array(center_points)
+        # 生成从点
+        offset = 0.01  # 从点偏移量
+        slave_points1 = center_points + np.array([0, offset])
+        slave_points2 = center_points - np.array([0, offset])
+        # 将z坐标设为固定值，例如z=0
+        # z_fixed = 60.0
+        # center_points_3d = np.hstack((center_points, np.full((center_points.shape[0], 1), z_fixed)))
+        # # 计算切线方向并生成旋转矩阵
+        # rotations = []
+        # for i in range(1, len(center_points_3d) - 1):
+        #     p1 = center_points_3d[i - 1]
+        #     p2 = center_points_3d[i + 1]
+        #     direction = p2 - p1
+        #     direction /= np.linalg.norm(direction)
+        #     # 默认 z 轴为固定方向，可以根据实际需要调整
+        #     z_axis = np.array([0, 0, 1])
+        #     # 创建旋转矩阵，使x轴与方向对齐，y轴与z_axis正交，z轴为z_axis
+        #     x_axis = direction
+        #     y_axis = np.cross(z_axis, x_axis)
+        #     y_axis /= np.linalg.norm(y_axis)
+        #     z_axis = np.cross(x_axis, y_axis)
+        #     rotation_matrix = np.vstack([x_axis, y_axis, z_axis]).T
+        #     rotations.append(R.from_matrix(rotation_matrix).as_quat())
+
+        # # 打印六维位姿数据
+        # for i, point in enumerate(center_points_3d[1:-1]):
+        #     print("Position:", point)
+        #     print("Orientation (quaternion):", rotations[i])
+        #     print()
+        # 使用matplotlib绘制图像
+        fig, ax = plt.subplots()
+        ax.plot(x, y, 'o', label='origin data')
+        ax.plot(x_new, y_new, '-', label='b line')
+        ax.plot(center_points[:, 0], center_points[:, 1], 'x', label='center')
+        ax.plot(slave_points1[:, 0], slave_points1[:, 1], '>', label='s1')
+        ax.plot(slave_points2[:, 0], slave_points2[:, 1], '<', label='s2')
+        ax.legend()
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_title('picture')
+        ax.axis('equal')  # 保持 x 和 y 轴比例相同
+        # 将matplotlib绘图转化为numpy数组
+        canvas = FigureCanvas(fig)
+        canvas.draw()
+        image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+        image = image.reshape(canvas.get_width_height()[::-1] + (3,))
+        # 转换颜色格式从RGB到BGR
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        # 关闭matplotlib figure以释放资源
+        plt.close(fig)
+
+        return image
+
+def get_rm65_points():
+    # img_data_2d
+    data = np.loadtxt('data\\points\\test_roi_3d\\camera_space_points.txt', usecols=(0, 1))
+    x = data[:, 0]
+    y = data[:, 1]
+
+    # 对数据进行排序，确保按照 x 的顺序排列
+    sorted_indices = np.argsort(x)
+    x = x[sorted_indices]
+    y = y[sorted_indices]
+    # 样条插值
+    tck, u = splprep([x, y], s=1)
+    x_new, y_new = splev(np.linspace(0, 1, num=500), tck)
+    # 分段数
+    num_segments = 10
+    segment_length = len(x_new) // num_segments
+
+    # 计算每段的中心点
+    center_points = []
+    for i in range(num_segments):
+        mid_index = i * segment_length + segment_length // 2
+        center_points.append([x_new[mid_index], y_new[mid_index]])
+
+    center_points = np.array(center_points)
+
+    # 生成从点
+    offset = 0.01  # 从点偏移量
+    slave_points1 = center_points + np.array([0, offset])
+    slave_points2 = center_points - np.array([0, offset])
+
+    # 将z坐标设为固定值，例如z=0
+    z_fixed = 60.0
+    center_points_3d = np.hstack((center_points, np.full((center_points.shape[0], 1), z_fixed)))
+
+    # 计算切线方向并生成旋转矩阵
+    rotations = []
+    for i in range(1, len(center_points_3d) - 1):
+        p1 = center_points_3d[i - 1]
+        p2 = center_points_3d[i + 1]
+        direction = p2 - p1
+        direction /= np.linalg.norm(direction)
+        # 默认 z 轴为固定方向，可以根据实际需要调整
+        z_axis = np.array([0, 0, 1])
+        # 创建旋转矩阵，使x轴与方向对齐，y轴与z_axis正交，z轴为z_axis
+        x_axis = direction
+        y_axis = np.cross(z_axis, x_axis)
+        y_axis /= np.linalg.norm(y_axis)
+        z_axis = np.cross(x_axis, y_axis)
+        rotation_matrix = np.vstack([x_axis, y_axis, z_axis]).T
+        rotations.append(R.from_matrix(rotation_matrix).as_quat())
+
+    # 打印六维位姿数据
+    for i, point in enumerate(center_points_3d[1:-1]):
+        print("Position:", point)
+        print("Orientation (quaternion):", rotations[i])
+        print()
+
+
+    # 可视化
+    plt.plot(x, y, 'o', label='origin data')
+    plt.plot(x_new, y_new, '-', label='b line')
+    plt.plot(center_points[:, 0], center_points[:, 1], 'x', label='center')
+    plt.plot(slave_points1[:, 0], slave_points1[:, 1], '>', label='s1')
+    plt.plot(slave_points2[:, 0], slave_points2[:, 1], '<', label='s2')
+    plt.legend()
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title('picture')
+    plt.axis('equal')  # 保持 x 和 y 轴比例相同
+    plt.show()
+
 
 def plotPy_CLoss(file_path):
-    # 读取文件内容
-    # 从txt文件读取数据
-    data1 = np.loadtxt(file_path+'camera_space_points.txt')
-    data2 = np.loadtxt(file_path+'edgePoint_3d_kinect_wound.txt')
-    # 计算误差，可以使用均方误差（Mean Squared Error, MSE）等指标
-    # error = np.mean((data1 - data2)**2)
-    # print(f"均方误差：{error}")
-    # 可视化一个特定的数据点，例如第一个数据点
-    # 三维散点图
+    data1 = np.loadtxt(file_path + 'camera_space_points.txt')
+    # 创建三维散点图
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(data1[:, 0], data1[:, 1], data1[:, 2], label='Data 1')
-    ax.scatter(data2[:, 0], data2[:, 1], data2[:, 2], label='Data 2')
-    ax.set_xlabel('X轴')
-    ax.set_ylabel('Y轴')
-    ax.set_zlabel('Z轴')
-    ax.set_title('三维散点图')
+    # 设置轴标签
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title('wound shape data')
     ax.legend()
+    # 设置三个轴的范围相同
+    max_range = np.array([data1[:, 0].max() - data1[:, 0].min(), 
+                        data1[:, 1].max() - data1[:, 1].min(), 
+                        data1[:, 2].max() - data1[:, 2].min()]).max() / 2.0
+    mid_x = (data1[:, 0].max() + data1[:, 0].min()) * 0.5
+    mid_y = (data1[:, 1].max() + data1[:, 1].min()) * 0.5
+    mid_z = (data1[:, 2].max() + data1[:, 2].min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+    # 显示图形
     plt.show()
 
                 
 
 if __name__ == "__main__":
 
-    plotPy_CLoss('D:\\Program Files\\company\\Jinjia\\Projects\\autoSuture\\data\\kinect_py_c_loss\\')
+    # plotPy_CLoss('data\\points\\test_roi_3d\\')
+    get_rm65_points()
     exit(0)
     # 使用示例
     processor = KinectCapture()
@@ -325,33 +476,3 @@ if __name__ == "__main__":
     #     end_time = time.time()
     #     execution_time = end_time - start_time
     #     print(f"Execution time: {execution_time} seconds")
-
-    # 测试最临近搜索代码
-    # 创建 KinectCapture 实例
-    kinect = KinectCapture()
-    time.sleep(4)
-    count = 0
-    color_img = cv2.imread('test.png')
-    kinect.search_3dImgIndex(color_img, 'D:\\Program Files\\company\\Jinjia\\Projects\\autoSuture\\test\\')
-    exit(0)
-    while True:
-        # 获取当前颜色帧和深度帧
-        color_frame, depth_frame = kinect.get_frames()
-
-        if color_frame is not None and depth_frame is not None:
-            # 显示颜色帧
-            cv2.imshow('Color Frame', color_frame)
-            cv2.imshow('Depth Frame', depth_frame)
-            # 保存颜色帧到本地
-            cv2.waitKey(0)
-            x, y, w, h = 1077, 452, 300, 130
-            cv2.imwrite('data\\test\\'+str(count)+'_color_frame.png', color_frame[y:y+h, x:x+w])
-            print("this is ",count," 次保存\n")
-            count = count+1
-        # 退出条件
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-            # break
-
-    # 关闭 Kinect
-    kinect_capture.close()
-    cv2.destroyAllWindows()

@@ -240,9 +240,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             rm65 = RobotConnection("192.168.1.18", 8080)
             rm65.connect()
         # 启动机械臂运动线程，
-        # 串口压力读数线程，因为需要多线程同事使用，因此将创建对象抽离，进行传参
         points = []
-        with open('data\\points\\dingshuji.txt', 'r') as file:
+        with open('data\\points\\cycle_half_2.txt', 'r') as file:
             lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
@@ -328,9 +327,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # 修改为收集第一张图像确定roi区域--待删除废弃
     def on_imgCollect(self):
         print("修改为收集第一张图像确定roi区域")
-        self.kinect_getColorImg = KinectCapture()
+        if not hasattr(self,'kinect'):
+            self.kinect = KinectCapture()
         # 只有在 KinectCapture 实例存在时才调用相应方法
-        colorImg,depthImg = self.kinect_getColorImg.get_frames()
+        colorImg,depthImg = self.kinect.get_frames()
          # 检查colorImg是否为None（即图像是否为空）
         if colorImg is not None:
             # 从四通道的RGBA转换为三通道的RGB
