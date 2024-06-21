@@ -17,8 +17,7 @@ from PIL import Image
 import numpy as np
 
 # roi区域--统一在这里进行更改--也可以用信号和槽的方式进行传递？？？
-# x,y,w,h = 1255,677,180,40
-x,y,w,h = 1264,720,188,55
+x,y,w,h = 1190,730,180,50
 # Lookup table for CRC calculation
 aucCRCHi = [
     0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
@@ -226,22 +225,6 @@ class show_roi_thread(QThread):
                     if consecutive_ones_count ==2:
                         wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
                         height, width = multi_pred_img.shape
-                        # 将得到的pred图像扩充为1920x1080大小的图像，然后保存其roi位置信息到本地，然后进行函数拟合得到分段点
-                        # 创建一个白色的图像，大小为1920x1080--由于是二值化图像，因此创建模板是单通道的
-                        final_canvas = np.ones((1080, 1920), dtype=np.uint8) * 255
-                        # cv2.imwrite('data\\points\\test_roi_3d\\wound_shape_data.png', wound_shape_data)
-                        final_canvas[y:y+h, x:x+w] = wound_shape_data
-                        # final_canvas = cv2.bitwise_not(final_canvas)
-                        # cv2.imwrite('data\\points\\test_roi_3d\\final_output.png', final_canvas)# 保存最终图像
-                        # wound_point_3d=self.kinect.search_3dImgIndex(final_canvas)
-                        # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（用转换矩阵之前）
-                        func_data=[]
-                        # with 
-                        # for i in wound_point_3d:
-                            # func_data.append([i[0],i[1]])
-                        # show_programming_points = self.kinect.getRm65RunPoints(func_data)
-                        
-                        # print(func_data)
                         bytes_per_line = width
                         q_image = QImage(multi_pred_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
                         # 在 QLabel 中显示图像，并保持原比例
@@ -281,9 +264,29 @@ class show_roi_thread(QThread):
                     #     consecutive_ones_count = 0
                     #     self.count = 0
                     #     self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)#停止机械臂运动
-                    #     # self.show_down_func()
                     #     self.change_show_status(1)
-        
+                
+                elif self.show_status == 3:
+                    # 暂时用于路径点规划--标定等函数
+                    pred = self.predict_roi_img.predict_img(roi_img)
+                    binary_img = np.uint8(pred)
+                    wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img)# 获取预测的伤口边缘数据
+                    height, width = multi_pred_img.shape
+                    # 将得到的pred图像扩充为1920x1080大小的图像，然后保存其roi位置信息到本地，然后进行函数拟合得到分段点
+                    # 创建一个白色的图像，大小为1920x1080--由于是二值化图像，因此创建模板是单通道的
+                    final_canvas = np.ones((1080, 1920), dtype=np.uint8) * 255
+                    final_canvas[y:y+h, x:x+w] = wound_shape_data
+                    # final_canvas = cv2.bitwise_not(final_canvas)
+                    # cv2.imwrite('data\\points\\test_roi_3d\\final_output.png', final_canvas)# 保存最终图像
+                    wound_point_3d=self.kinect.search_3dImgIndex(final_canvas)
+                    # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（用转换矩阵之前）
+                    func_data=[]
+                    for i in wound_point_3d:
+                        func_data.append([i[0],i[1],0.160])
+                    # print(func_data)
+                    show_programming_points = self.kinect.getTurePointsRm65(func_data)
+                    print(show_programming_points)
+                    self.change_show_status(1)
 
     @pyqtSlot(int)
     def change_show_status(self,status):
@@ -439,7 +442,7 @@ class WorkThread(QThread):
                 if motor_signal == "motor_run_successful":
                     print("缝合完成，开始抬升")# 圆弧行运动模块--是标准园还是曲线部分？看具体运动效果
                     temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
-                    temp_point.pz = (21 - index * 1.7) * 0.01 + temp_point.pz
+                    temp_point.pz = (21 - index * 2.1) * 0.01 + temp_point.pz
                     temp_point.px -= 0.005
                     # 订书机模式
                     # temp_point.pz = (5) * 0.01 + temp_point.pz

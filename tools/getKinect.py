@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev
 from scipy.spatial.transform import Rotation as R
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import pandas as pd
 
 depthSize = 512*424
 
@@ -284,8 +285,9 @@ class KinectCapture:
                 return only_wound_shape,background
             else:
                 return None
-            
-    def getRm65RunPoints(data):
+    
+    # 生成带运动点以及从点--展示使用
+    def getRm65RunPoints(self,data):
         x = data[:, 0]
         y = data[:, 1]
         # 对数据进行排序，确保按照 x 的顺序排列
@@ -316,7 +318,7 @@ class KinectCapture:
         # for i in range(1, len(center_points_3d) - 1):
         #     p1 = center_points_3d[i - 1]
         #     p2 = center_points_3d[i + 1]
-        #     direction = p2 - p1
+        #     direction = p2 - p1Y
         #     direction /= np.linalg.norm(direction)
         #     # 默认 z 轴为固定方向，可以根据实际需要调整
         #     z_axis = np.array([0, 0, 1])
@@ -357,77 +359,68 @@ class KinectCapture:
 
         return image
 
-def get_rm65_points():
-    # img_data_2d
-    data = np.loadtxt('data\\points\\test_roi_3d\\camera_space_points.txt', usecols=(0, 1))
-    x = data[:, 0]
-    y = data[:, 1]
-
-    # 对数据进行排序，确保按照 x 的顺序排列
-    sorted_indices = np.argsort(x)
-    x = x[sorted_indices]
-    y = y[sorted_indices]
-    # 样条插值
-    tck, u = splprep([x, y], s=1)
-    x_new, y_new = splev(np.linspace(0, 1, num=500), tck)
-    # 分段数
-    num_segments = 10
-    segment_length = len(x_new) // num_segments
-
-    # 计算每段的中心点
-    center_points = []
-    for i in range(num_segments):
-        mid_index = i * segment_length + segment_length // 2
-        center_points.append([x_new[mid_index], y_new[mid_index]])
-
-    center_points = np.array(center_points)
-
-    # 生成从点
-    offset = 0.01  # 从点偏移量
-    slave_points1 = center_points + np.array([0, offset])
-    slave_points2 = center_points - np.array([0, offset])
-
-    # 将z坐标设为固定值，例如z=0
-    z_fixed = 60.0
-    center_points_3d = np.hstack((center_points, np.full((center_points.shape[0], 1), z_fixed)))
-
-    # 计算切线方向并生成旋转矩阵
-    rotations = []
-    for i in range(1, len(center_points_3d) - 1):
-        p1 = center_points_3d[i - 1]
-        p2 = center_points_3d[i + 1]
-        direction = p2 - p1
-        direction /= np.linalg.norm(direction)
-        # 默认 z 轴为固定方向，可以根据实际需要调整
-        z_axis = np.array([0, 0, 1])
-        # 创建旋转矩阵，使x轴与方向对齐，y轴与z_axis正交，z轴为z_axis
-        x_axis = direction
-        y_axis = np.cross(z_axis, x_axis)
-        y_axis /= np.linalg.norm(y_axis)
-        z_axis = np.cross(x_axis, y_axis)
-        rotation_matrix = np.vstack([x_axis, y_axis, z_axis]).T
-        rotations.append(R.from_matrix(rotation_matrix).as_quat())
-
-    # 打印六维位姿数据
-    for i, point in enumerate(center_points_3d[1:-1]):
-        print("Position:", point)
-        print("Orientation (quaternion):", rotations[i])
-        print()
-
-
-    # 可视化
-    plt.plot(x, y, 'o', label='origin data')
-    plt.plot(x_new, y_new, '-', label='b line')
-    plt.plot(center_points[:, 0], center_points[:, 1], 'x', label='center')
-    plt.plot(slave_points1[:, 0], slave_points1[:, 1], '>', label='s1')
-    plt.plot(slave_points2[:, 0], slave_points2[:, 1], '<', label='s2')
-    plt.legend()
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.title('picture')
-    plt.axis('equal')  # 保持 x 和 y 轴比例相同
-    plt.show()
-
+    def getTurePointsRm65(self,data):
+        # 从txt文件中读取数据
+        # data = np.loadtxt(file_path, usecols=(0, 1, 2))  # 读取三列数据
+        data = np.array(data)
+        x = data[:, 0]
+        y = data[:, 1]
+        z = data[:, 2]
+        # 对数据进行排序，确保按照 x 的顺序排列
+        sorted_indices = np.argsort(x)
+        x = x[sorted_indices]
+        y = y[sorted_indices]
+        z = z[sorted_indices]
+        # 样条插值
+        tck, u = splprep([x, y, z], s=1)  # 调整 s 参数以增加平滑度
+        u_fine = np.linspace(0, 1, num=500)
+        x_new, y_new, z_new = splev(u_fine, tck)
+        # 计算曲线总长度
+        distances = np.sqrt(np.diff(x_new)**2 + np.diff(y_new)**2 + np.diff(z_new)**2)
+        total_length = np.sum(distances)
+        # 分段数
+        num_segments = 10
+        segment_length = total_length / num_segments
+        # 计算等距的分段点
+        center_points = []
+        current_length = 0
+        for i in range(1, len(u_fine)):
+            current_length += distances[i-1]
+            if current_length >= segment_length:
+                center_points.append([x_new[i], y_new[i], z_new[i]])
+                current_length = 0
+        center_points = np.array(center_points)
+        # 确保有 num_segments 个中心点
+        while len(center_points) < num_segments:
+            center_points = np.append(center_points, [[x_new[-1], y_new[-1], z_new[-1]]], axis=0)
+        # 计算每个中心点的旋转矩阵
+        z_axis = np.array([0, 0, -1])
+        poses = []
+        for i in range(1, len(center_points) - 1):
+            p1 = center_points[i - 1]
+            p2 = center_points[i + 1]
+            direction = p2 - p1
+            direction /= np.linalg.norm(direction)
+            x_axis = direction
+            y_axis = np.cross(z_axis, x_axis)
+            y_axis /= np.linalg.norm(y_axis)
+            z_axis_corrected = np.cross(x_axis, y_axis)
+            rotation_matrix = np.vstack([x_axis, y_axis, z_axis_corrected]).T
+            euler_angles = R.from_matrix(rotation_matrix).as_euler('xyz')
+            # 修正rz角度
+            if euler_angles[2] < 0:
+                euler_angles[2] += np.pi
+            else:
+                euler_angles[2] -= np.pi
+            pose = np.concatenate((center_points[i], euler_angles))
+            poses.append(pose)
+        poses = np.array(poses)
+        poses = poses[np.argsort(poses[:, 0])[::-1]]# 将结果按x坐标降序
+        for pose in poses:
+            formatted_pose = ', '.join(f"{coord:.6f}" for coord in pose)
+            print(formatted_pose)
+        poses = np.around(poses, decimals=6)# 将数组中的数据四舍五入到六位小数
+        return poses
 
 def plotPy_CLoss(file_path):
     data1 = np.loadtxt(file_path + 'camera_space_points.txt')
@@ -455,12 +448,100 @@ def plotPy_CLoss(file_path):
     # 显示图形
     plt.show()
 
-                
+
+# 真实待运动轨迹点
+def read_and_process_points(file_path):
+    # 从txt文件中读取数据
+    data = np.loadtxt(file_path, usecols=(0, 1, 2))  # 读取三列数据
+    x = data[:, 0]
+    y = data[:, 1]
+    z = data[:, 2]
+    # 对数据进行排序，确保按照 x 的顺序排列
+    sorted_indices = np.argsort(x)
+    x = x[sorted_indices]
+    y = y[sorted_indices]
+    z = z[sorted_indices]
+    # 样条插值
+    tck, u = splprep([x, y, z], s=1)  # 调整 s 参数以增加平滑度
+    u_fine = np.linspace(0, 1, num=500)
+    x_new, y_new, z_new = splev(u_fine, tck)
+    # 计算曲线总长度
+    distances = np.sqrt(np.diff(x_new)**2 + np.diff(y_new)**2 + np.diff(z_new)**2)
+    total_length = np.sum(distances)
+    # 分段数
+    num_segments = 10
+    segment_length = total_length / num_segments
+    # 计算等距的分段点
+    center_points = []
+    current_length = 0
+    for i in range(1, len(u_fine)):
+        current_length += distances[i-1]
+        if current_length >= segment_length:
+            center_points.append([x_new[i], y_new[i], z_new[i]])
+            current_length = 0
+    center_points = np.array(center_points)
+    # 确保有 num_segments 个中心点
+    while len(center_points) < num_segments:
+        center_points = np.append(center_points, [[x_new[-1], y_new[-1], z_new[-1]]], axis=0)
+    # 计算每个中心点的旋转矩阵
+    z_axis = np.array([0, 0, -1])
+    poses = []
+    for i in range(1, len(center_points) - 1):
+        p1 = center_points[i - 1]
+        p2 = center_points[i + 1]
+        direction = p2 - p1
+        direction /= np.linalg.norm(direction)
+        x_axis = direction
+        y_axis = np.cross(z_axis, x_axis)
+        y_axis /= np.linalg.norm(y_axis)
+        z_axis_corrected = np.cross(x_axis, y_axis)
+        rotation_matrix = np.vstack([x_axis, y_axis, z_axis_corrected]).T
+        euler_angles = R.from_matrix(rotation_matrix).as_euler('xyz')
+        # 修正rz角度
+        if euler_angles[2] < 0:
+            euler_angles[2] += np.pi
+        else:
+            euler_angles[2] -= np.pi
+        pose = np.concatenate((center_points[i], euler_angles))
+        poses.append(pose)
+    poses = np.array(poses)
+    poses = poses[np.argsort(poses[:, 0])[::-1]]# 将结果按x坐标降序
+    for pose in poses:
+        formatted_pose = ' '.join(f"{coord:.6f}" for coord in pose)
+        print(formatted_pose)
+    return poses
+
+
+def show_dis():
+    # 从本地txt文件读取数据，假设文件名为data.txt，数据以空格分隔
+    data = np.loadtxt('data\\points\\test_roi_3d\\test2.txt', usecols=(0, 1))
+    # 提取x和y列    
+    x = data[:, 0]
+    y = data[:, 1]
+    # 计算点之间的距离
+    distances = np.sqrt(np.diff(x)**2 + np.diff(y)**2)
+    # 打印计算的距离
+    print("Distances between points:")
+    print(distances)
+    # 可视化展示
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, y, marker='o', linestyle='-', color='b')
+    # 在图上标注距离
+    for i in range(len(distances)):
+        plt.text((x[i] + x[i+1]) / 2, (y[i] + y[i+1]) / 2, 
+                f'{distances[i]:.6f}', fontsize=12, color='red')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title('Points and Distances')
+    plt.grid(True)
+    plt.show()
 
 if __name__ == "__main__":
-
+    show_dis()
+    exit()
+    pose_data = read_and_process_points("data\\points\\cycle_half_2.txt")
     # plotPy_CLoss('data\\points\\test_roi_3d\\')
-    get_rm65_points()
+    # get_rm65_points()
     exit(0)
     # 使用示例
     processor = KinectCapture()

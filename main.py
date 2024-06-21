@@ -56,7 +56,6 @@ class DevMsge(ctypes.Structure):
 # 全局变量，用于保存图像计数 ---仅用作图像采集时的权宜之计
 global_count_colorImg = 1
 glbal_start_time = 0
-# x,y,w,h = 1255,677,180,40
 class MainWindow(QMainWindow, Ui_MainWindow):
     # 初始化
     def __init__(self):
@@ -65,7 +64,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.work_thread = None
         self.pressure_thread = None
         self.showWoundStatus = False
-        self.img_roi = [1255,677,180,40] #roi区域,默认为伤口区域
+        # self.img_roi = [1255,677,180,40] #roi区域,默认为伤口区域
+        self.img_roi = [1190,730,180,50] #roi区域,默认为伤口区域
     
 
     # 获取kinect图像
@@ -209,12 +209,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         print("成功运动到原始位置：")
 
-        joint[0] = 6.269
-        joint[1] = 18.810
-        joint[2] = 102.345
-        joint[3] = -1.216
-        joint[4] = 60.860
-        joint[5] = -189.399
+        # joint[0] = 6.269
+        # joint[1] = 18.810
+        # joint[2] = 102.345
+        # joint[3] = -1.216
+        # joint[4] = 60.860
+        # joint[5] = -189.399
+        joint[0] = 8.066
+        joint[1] = 7.113
+        joint[2] = 117.814
+        joint[3] = -1.192
+        joint[4] = 57.064
+        joint[5] = -187.550
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         if ret != 0:
             print("Movec_Cmd 1 失败:" + str(ret))
@@ -223,7 +229,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print("显示子线程开启")
         self.show_kinect_thread = show_roi_thread(self)
         self.show_kinect_thread.start()
-        self.show_kinect_thread.show_status_signal.emit(1)
+        self.show_kinect_thread.show_status_signal.emit(3)
         # 初始化显示区域，增加一个定时器用作刷新该区域
         print("系统初始化成功，可以点击运行按钮")
 
@@ -239,9 +245,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print("开始run rm65线程")
             rm65 = RobotConnection("192.168.1.18", 8080)
             rm65.connect()
-        # 启动机械臂运动线程，
+        # 启动机械臂运动线程
         points = []
-        with open('data\\points\\cycle_half_2.txt', 'r') as file:
+        with open('data\\points\\6-21\\run.txt', 'r') as file:
             lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
