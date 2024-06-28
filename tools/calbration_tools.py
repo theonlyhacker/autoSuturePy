@@ -36,6 +36,43 @@ def find_chessboard(img_path, size):
         return -1
 
 
+def find_and_display_chessboard_corners(img_path, size):
+    # Ensure the image path exists
+    assert os.path.exists(img_path), "Image path does not exist."
+    # Read the image
+    copyImg = cv.imread(img_path)
+    if copyImg is None:
+        raise ValueError("Could not read the image.")
+    # Find chessboard corners
+    ok, corners_first = cv.findChessboardCorners(copyImg, size, None)
+    font = cv.FONT_HERSHEY_SIMPLEX
+    if ok:
+        # Draw and label the first set of corners
+        for i, corner in enumerate(corners_first):
+            point = (int(corner[0][0]), int(corner[0][1]))
+            cv.circle(copyImg, point, 5, (0, 255, 0), -1)  # Draw a circle at each corner BGR的顺序
+            cv.putText(copyImg, str(i), point, font, 0.5, (255, 0, 0), 1, cv.LINE_AA)  # Put the index number
+        # Modify the image by drawing a rectangle around the first and last corner of the first detection
+        point0 = (int(corners_first[0][0][0]), int(corners_first[0][0][1]))
+        point1 = (int(corners_first[24][0][0]), int(corners_first[24][0][1]))
+        # cv.rectangle(copyImg, point0, point1, (0, 0, 255), -1)
+        ok, corners_sec = cv.findChessboardCorners(copyImg, size, None)
+        if ok: 
+            for i, corner in enumerate(corners_sec):# Draw and label the second set of corners
+                point = (int(corner[0][0]), int(corner[0][1]))
+            # Average the positions of the two sets of corners
+            merged_matrix = np.add(corners_first, corners_sec)
+            corners = np.divide(merged_matrix, 2)
+            corners = np.squeeze(corners)
+            return corners, copyImg
+        else:
+            print("Cannot find chessboard points in the modified image.")
+            return np.squeeze(corners_first), copyImg
+    else:
+        print('Cannot find chessboard points.')
+        return -1, copyImg
+
+
 def pca(point_set):
     covariance_mat = np.cov(point_set, rowvar=False)
     eigen_vals, eigen_vecs = np.linalg.eig(covariance_mat)

@@ -110,7 +110,7 @@ class KinectCapture:
         # 获取颜色空间点
         color_space_points = self.get_color_space_points(depth_frame)
         # 为每个深度点分配颜色
-        with open(filename+'camera_space_points.txt', 'w') as f1, open(filename+'color_space_points.txt', 'w') as f2:
+        with open(filename+'result_cameraPts.txt', 'w') as f1, open(filename+'result_colorPts.txt', 'w') as f2:
             for i, point in enumerate(camera_space_points):
                 x, y, z = float(point.x), float(point.y), float(point.z)
                 if not (np.isinf(x) or np.isinf(y) or np.isinf(z)):  # 如果点的坐标不是inf或-inf
@@ -135,7 +135,8 @@ class KinectCapture:
         self.kinect.close()
 
     # 在处理图像之后，根据像素图象的point找到相机空间中对应的三维点
-    def search_3dImgIndex(self,pred):
+    # 入参修改为像素点的矩阵
+    def search_3dImgIndex(self,edgePoints):
         # 假设这里图像是只有目标区域的0-1二值化图形
         # 那么我们就需要找到这个图形的最大轮廓也就是目标区域的边界
         # 这里我们使用cv2.findContours函数来找到这个边界
@@ -145,8 +146,8 @@ class KinectCapture:
         # color_img = color_result_image/255
         # color_img = color_img.astype(np.uint8)
         # binary_img = np.uint8(pred > 0.5) * 255
-        edgePoints = []        
-        binary_img = np.uint8(pred)
+        # edgePoints = []        
+        # binary_img = np.uint8(pred)
 
         # 最大轮廓边缘点代码
         # contours, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -163,13 +164,14 @@ class KinectCapture:
         #     # 保存最大连通域的边缘点
         #     edgePoints = contours[maxContourIdx]
         # print("the wounds edges(pixel) size is: ", len(edgePoints))
-
-        # 寻找连通域  保存最大连通域内所有点，只有边缘点太少了，这里保存所有点
-        _, labels, stats, _ = cv2.connectedComponentsWithStats(binary_img, connectivity=8)
-        # 获取标签为0的所有像素的坐标，也就是黑色，白色标签为1
-        y_coords, x_coords = np.where(labels == 0)
-        # 将x和y坐标存储在两个数组中
-        edgePoints = np.column_stack((x_coords, y_coords))
+ 
+        # _, labels, stats, _ = cv2.connectedComponentsWithStats(binary_img, connectivity=8)
+        # # 获取标签为0的所有像素的坐标，也就是黑色，白色标签为1
+        # y_coords, x_coords = np.where(labels == 0)
+        # # 将x和y坐标存储在两个数组中
+        # edgePoints = np.column_stack((x_coords, y_coords))
+        # # 测试，后续将其修改为入参为数组
+        # edgePoints=np.column_stack((1239, 773))
         print("the wounds area(pixel) size is: ", len(edgePoints))
 
         # 特别标明，这里的坐标是图像坐标，不是相机空间坐标，且数量为0时，返回空列表
@@ -215,18 +217,16 @@ class KinectCapture:
         # 遍历完边缘点索引
         wound_point_3d = []
         # 测试代码
-        with open('data\\points\\test_roi_3d\\camera_space_points.txt', 'w') as f1:
-            for i in edgePointIndex2d:
-                point = camera_space_points[i]
-                wound_point_3d.append([point[0], point[1], point[2]])
-                # 将点的坐标写入camera_space_points.txt
-                f1.write(f"{point[0]} {point[1]} {point[2]}\n")
+        # with open('data\\points\\test_roi_3d\\camera_space_points.txt', 'w') as f1:
+        #     for i in edgePointIndex2d:
+        #         point = camera_space_points[i]
+        #         wound_point_3d.append([point[0], point[1], point[2]])
+        #         # 将点的坐标写入camera_space_points.txt
+        #         f1.write(f"{point[0]} {point[1]} {point[2]}\n")
 
-        # for i in edgePointIndex2d:
-        #     point = camera_space_points[i]
-        #     wound_point_3d.append([point[0], point[1], point[2]])
-            # 将点的坐标写入camera_space_points.txt
-            # f1.write(f"{point[0]} {point[1]} {point[2]}\n")
+        for i in edgePointIndex2d:
+            point = camera_space_points[i]
+            wound_point_3d.append([point[0], point[1], point[2],1])
         # 保存颜色帧图片
         # cv2.imwrite(filename + 'result.png', color_result_image)
         return wound_point_3d

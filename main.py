@@ -178,7 +178,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print("kinect相机初始化成功")
         # 机械臂初始化
         if(not hasattr(self, 'rm65')):
-            self.rm65 = RobotConnection("192.168.1.18", 8080)
+            self.rm65 = RobotConnection("192.168.1.19", 8080)
             self.rm65.connect()
         current_tool_name = self.rm65.get_currentToolName()
         print("当前工具坐标系:" + str(current_tool_name))
@@ -243,7 +243,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         if(not hasattr(self, 'rm65')):
             print("开始run rm65线程")
-            rm65 = RobotConnection("192.168.1.18", 8080)
+            rm65 = RobotConnection("192.168.1.19", 8080)
             rm65.connect()
         # 启动机械臂运动线程
         points = []
@@ -287,7 +287,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 暂时用于输出机械臂当前位姿
         print("-------------------")
         if(not hasattr(self, 'rm65')):
-            self.rm65 = RobotConnection("192.168.1.18", 8080)
+            self.rm65 = RobotConnection("192.168.1.19", 8080)
             self.rm65.connect()
         cur_point = self.rm65.get_currentPose()
         print(f"{cur_point.px:.6f} {cur_point.py:.6f} {cur_point.pz:.6f} {cur_point.rx:.6f} {cur_point.ry:.6f} {cur_point.rz:.6f}")
@@ -304,7 +304,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.teach_flag = True
         # 如果没有rm65对象，就创建一个
         if(not hasattr(self, 'rm65')):
-            self.rm65 = RobotConnection("192.168.1.18", 8080)
+            self.rm65 = RobotConnection("192.168.1.19", 8080)
             self.rm65.connect()
         # 如果没有kinect对象，就创建一个 
         if(not hasattr(self, 'kinect')):
@@ -335,9 +335,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print("修改为收集第一张图像确定roi区域")
         if not hasattr(self,'kinect'):
             self.kinect = KinectCapture()
+        # 保存点云信息
+        filePath = "data\\points\\6-28\\judge\\"
+        self.kinect.save_point_cloud(filename=filePath)
         # 只有在 KinectCapture 实例存在时才调用相应方法
         colorImg,depthImg = self.kinect.get_frames()
-         # 检查colorImg是否为None（即图像是否为空）
+        #  检查colorImg是否为None（即图像是否为空）
         if colorImg is not None:
             # 从四通道的RGBA转换为三通道的RGB
             rgb_img = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
@@ -351,8 +354,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # predict = predictImg()
             # pred = predict.predict_img(roi_img)
             # cv2.imwrite(file_name+f"pred_{global_count_colorImg}.png", pred)
-            print("图像保存成功")
-            sys.exit()
+        print("图像保存成功")
+        sys.exit()
 
 
 if __name__ == "__main__":

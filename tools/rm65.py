@@ -165,7 +165,7 @@ class RobotConnection:
 
 if __name__ == "__main__":
     # 实例化RM65类
-    rm65 = RobotConnection("192.168.1.18", 8080)
+    rm65 = RobotConnection("192.168.1.19", 8080)
     # 初始化实例变量
     rm65.connect()
     # 获取当前坐标系

@@ -278,14 +278,20 @@ class show_roi_thread(QThread):
                     final_canvas[y:y+h, x:x+w] = wound_shape_data
                     # final_canvas = cv2.bitwise_not(final_canvas)
                     # cv2.imwrite('data\\points\\test_roi_3d\\final_output.png', final_canvas)# 保存最终图像
-                    wound_point_3d=self.kinect.search_3dImgIndex(final_canvas)
-                    # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（用转换矩阵之前）
-                    func_data=[]
-                    for i in wound_point_3d:
-                        func_data.append([i[0],i[1],0.160])
-                    # print(func_data)
-                    show_programming_points = self.kinect.getTurePointsRm65(func_data)
-                    print(show_programming_points)
+                    edgePoints = []        
+                    binary_img = np.uint8(pred)
+                    _, labels, stats, _ = cv2.connectedComponentsWithStats(binary_img, connectivity=8)# 寻找连通域  保存最大连通域内所有点，只有边缘点太少了，这里保存所有点
+                    y_coords, x_coords = np.where(labels == 0)
+                    # 将x和y坐标存储在两个数组中
+                    edgePoints = np.column_stack((x_coords, y_coords))
+                    wound_point_3d=self.kinect.search_3dImgIndex(edgePoints)
+                    # # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（用转换矩阵之前）
+                    # func_data=[]
+                    # for i in wound_point_3d:
+                    #     func_data.append([i[0],i[1],0.160])
+                    # # print(func_data)
+                    # show_programming_points = self.kinect.getTurePointsRm65(func_data)
+                    # print(show_programming_points)
                     self.change_show_status(1)
 
     @pyqtSlot(int)
