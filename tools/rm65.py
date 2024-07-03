@@ -76,8 +76,8 @@ class RobotConnection:
         # 获取当前坐标系
         tool_name = self.get_currentToolName()
         print("111---111" + str(tool_name))
-        if(tool_name != b'suturePin'):
-            sys.exit("当前坐标系不是suturePin")
+        if(tool_name != b'suture'):
+            sys.exit("当前坐标系不是suture")
         # print("当前坐标点信息:" + str(tool_farme.pose))
         
         # return tool_farme.pose.px, tool_farme.pose.py, tool_farme.pose.pz, tool_farme.pose.rx, tool_farme.pose.ry, tool_farme.pose.rz
@@ -85,8 +85,8 @@ class RobotConnection:
     def run_test(self):
         tool_name = rm65.get_currentToolName()
         print("run_test------" + str(tool_name))
-        if(tool_name != b'suturePin'):
-            sys.exit("当前坐标系不是suturePin")
+        if(tool_name != b'suture'):
+            sys.exit("当前坐标系不是suture")
         #   初始位置
         float_joint = ctypes.c_float*6
         joint = float_joint()

@@ -1,9 +1,11 @@
-import calbration_tools
 import numpy as np
 import os
 import sys
 import cv2 as cv
 from getKinect import KinectCapture
+import calbration_tools
+# from tools.getKinect import KinectCapture
+# from tools import calbration_tools
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -90,6 +92,24 @@ def kinect2robot_desk(robot_pts, rotate_mat, trans, savePath):
     return transformed_pts
 
 
+def record_chess_order(readPath):
+    # readPath = "data\\points\\7-1\\third\\"
+    chess_camera_pts, chess_color_pts_xy, chess_img, chess_corners ,copy_img= calbration_tools.read_data(
+        readPath, "result")
+    # 看了下这个顺序和利用kinect找到的相机角点顺序是一致的。
+    # 目前的问题是利用该2d点找到的3d kinect_data数据顺序和机械臂好像不一样？明天再看看。
+    #这里将棋盘格平面切割出来，chess_3d是整个棋盘格 3d信息，chess_2d包含其像素点的位置信息
+    # 现在添加方法，在找棋盘格位置时，将顺序同步标记并保存，然后根据顺序完成机械臂点的对应标记点记录 
+    chess_3d, chess_2d = calbration_tools.select_chessboard_pointcloud(img=chess_img, cameraPts=chess_camera_pts,
+                                                        color_pts_xy=chess_color_pts_xy,
+                                                        corners=chess_corners)
+    
+    kinect_chess_data = calbration_tools.homography_trans(chess_3d, chess_2d, chess_corners)
+    # 这里通过一系列的方法先拟合棋盘格平面点云，划区域，找点，等等来确定25个点对应的位置信息，和本地直接通过kdtree找到的点云数据有一定的出入
+    pts_kinect_chess = kinect_chess_data[:, :3]
+
+    np.savetxt(readPath + "\\kinect_chess_3d.txt", pts_kinect_chess)
+    cv.imwrite(readPath+"\\show_corners_order.png",copy_img)
 
 
 def plot_3d_from_file(filename):
@@ -142,7 +162,6 @@ def read_points(filename):
             if len(values) == 3:
                 points.append([float(v) for v in values])
     return np.array(points)
-
 
 def hand_eye_calibration(camera_points, robot_points):
     """
@@ -203,129 +222,71 @@ def transform_point(point, transformation_matrix):
     transformed_point = transformed_point_homogeneous[:3] / transformed_point_homogeneous[3]
     return transformed_point
 
-def lc_eye_cal():
-    filePath = "data\\points\\6-28\\judge\\"
+def save_trans_martix(filePath):
+    # filePath = "data\\points\\7-1\\third\\"
     camera_points = read_points(filePath+"kinect_chess_3d.txt")
     robot_points = read_points(filePath+"robot_Pts.txt")
     # 计算转换矩阵
     transformation_matrix = hand_eye_calibration(camera_points, robot_points)
-    np.savetxt(filePath+"trans_1.txt",transformation_matrix)
+    np.savetxt(filePath+"trans_new.txt",transformation_matrix)
     print("转换矩阵:\n", transformation_matrix)
-    # 示例转换
-    camera_point = np.array([0.09637157, 0.1824488, 0.67600006])  # 相机坐标系中的某个3D点
-    #[0.09637157, 0.1824488, 0.67600006, 1] [-0.4125307   0.49836113  0.2646213   1.        ]
-    #[0.09637157, 0.1824488, 0.67600006, 1] [-0.4125307   0.49836113  0.2646213   1.        ]
-    #[0.09637157, 0.1824488, 0.67600006, 1] [-0.36713279  0.06529149  0.12877755]
-    # 转换矩阵:
-    #  [[-0.9804625  -0.18792206 -0.05812566 -0.19906497]
-    #  [-0.18753625  0.80384455  0.56450341 -0.44490016]
-    #  [-0.05935865  0.56437509 -0.82338163  0.58813451]
-    #  [ 0.          0.          0.          1.        ]]
-    # [-0.24627494 -0.00061246  0.1248572 ] 
-    # [-0.29165235 0.43250328  0.26056038 ]
-    robot_point = transform_point(camera_point, transformation_matrix)
-    print("机械臂基座坐标系中的点:\n", robot_point)
 
-def test_point():
-    kinect = KinectCapture()
-    tf = np.array([
-        [-9.804624962067720606e-01, -1.879220621869180929e-01, -5.812565763414700992e-02, -1.990649741547012297e-01],
-        [-1.875362468689325268e-01, 8.038445452634623845e-01, 5.645034128864878653e-01, -4.449001577233223093e-01],
-        [-5.935865263212147108e-02,5.643750929954242102e-01, -8.233816276576163551e-01, 5.881345056000341076e-01],
-        [0,0,0,1]
-    ])
-    edgePoints = np.column_stack((1208, 258))
-    T_pinv = np.linalg.pinv(tf)
-    result = kinect.search_3dImgIndex(edgePoints)
-    print("the pos in kinect:")
-    print(result)
-    column_vector = np.array(result).T
-    result = np.matmul(T_pinv, column_vector).T
-    print("归一化之前")
-    print(result)
-    result_normalized = result[0][:3] / result[0][3]
-    print("in rm65 归一化之后")
-    print(result_normalized)
-
-
-if __name__ == '__main__':
-    print("---------------------")
-    # lc_eye_cal() --暂时有用
-    # exit()
-    # 示例调用
-    filename = 'data\\points\\6-28\\judge\\kinect_chess_3d.txt'  # 确保data.txt文件存在且格式正确
-    # plot_3d_from_file(filename)
-    # exit()
-    test_point()
-    exit()
-
-    readPath = "data\\points\\6-28\\judge\\"
-    # # 判断棋盘格角点顺序函数
-    # img_path = readPath+'result.png'
-    # size = (5, 5)  # Adjust this according to your chessboard size
-    # corners, annotated_img = calbration_tools.find_and_display_chessboard_corners(img_path, size)
-    # cv.imwrite(readPath+'annotated_chessboard_3.jpg', annotated_img)# Save the annotated image to visualize the corner points
-    # # If you want to display the image
-    # exit(0)
-
-    chess_camera_pts, chess_color_pts_xy, chess_img, chess_corners = calbration_tools.read_data(
-        readPath, "result")
-    # np.savetxt(readPath + "\\chess_corners2d.txt", chess_corners)
-    # 看了下这个顺序和利用kinect找到的相机角点顺序是一致的。
-    # 目前的问题是利用该2d点找到的3d kinect_data数据顺序和机械臂好像不一样？明天再看看。
-    #这里将棋盘格平面切割出来，chess_3d是整个棋盘格 3d信息，chess_2d包含其像素点的位置信息 
-    chess_3d, chess_2d = calbration_tools.select_chessboard_pointcloud(img=chess_img, cameraPts=chess_camera_pts,
-                                                        color_pts_xy=chess_color_pts_xy,
-                                                        corners=chess_corners)
-    kinect_chess_data = calbration_tools.homography_trans(chess_3d, chess_2d, chess_corners)
-    # print(kinect_chess_data)
-    # 这里通过一系列的方法先拟合棋盘格平面点云，划区域，找点，等等来确定25个点对应的位置信息，和本地直接通过kdtree找到的点云数据有一定的出入
-    pts_kinect_chess = kinect_chess_data[:, :3]
-
-    np.savetxt(readPath + "\\kinect_chess_3d.txt", pts_kinect_chess)
-
-    robot_chess = np.loadtxt(readPath + "\\robot_Pts.txt")
-    pts_chess_robot = robot_chess[:, :3]
-    rotate_mat, trans, FRE = calbration_tools.caculate_conversion_matrix(pts_kinect_chess, pts_chess_robot)
-    
-    # test the reverse data
-    # transposed_pts_chess_robot = pts_chess_robot[::-1]
-    # rotate_mat, trans, FRE = calbration_tools.caculate_conversion_matrix(pts_kinect_chess, transposed_pts_chess_robot)
-
-    # for test local data 
-    # readPath = 'D:\\Program Files\\Company\\Jinjia\\Projects\\kinect\\data\\IO\\cacalbration_toolsration\\desk'
-    # kinect_data = np.loadtxt(readPath + "\\kinect_corners_3d.txt")
-    # robot_data = np.loadtxt(readPath + "\\desk_robot_Pts.txt")
-    # rotate_mat, trans, FRE = calbration_tools.caculate_conversion_matrix(kinect_data, robot_data)
-    
+    # # 高师兄计算转换矩阵的方法
+    # robot_chess = np.loadtxt(readPath + "\\robot_Pts.txt")
+    pts_chess_robot = robot_points[:, :3]
+    rotate_mat, trans, FRE = calbration_tools.caculate_conversion_matrix(camera_points, pts_chess_robot)
     print("R = ", np.array(rotate_mat))
     print("T= ", np.array(trans))
     print("FRE", FRE)
     T = np.concatenate([np.array(rotate_mat).transpose(), np.array(trans)], axis=0).transpose()
-    np.savetxt(readPath + "\\transform_matrix.txt", T)
-    # column_vector = np.array([[-32.5039], [ -58.7463], [616], [1]])
+    T_4x4 = np.eye(4)# 创建一个4x4的单位矩阵
+    # T_4x4[:3, :3] = np.array(rotate_mat).transpose()# 将旋转矩阵的转置填入T_4x4的前3行前3列
+    # T_4x4[:3, 3] = np.array(trans)# 将转换向量填入T_4x4的前3行第4列
+    T_4x4[:3, :4] = T
+    np.savetxt(readPath + "\\trans_old.txt", T_4x4)
+    # 示例转换
+    # camera_point = np.array([0.14206304, 0.10986008, 0.69200003])  # 相机坐标系中的某个3D点
+    # robot_point = transform_point(camera_point, transformation_matrix)
+    # print("机械臂基座坐标系中的点:\n", robot_point)
 
-    # test_data = column_vector
-    # result = np.matmul(T, test_data)
-    # print(result/1000)
+def cal_trans_data(readPath,edge_point):
+    """
+    计算相机空间与机械臂的转换对应关系
+    
+    参数:
+    edge_point:相机空间一系列的二维点数组，也就是颜色空间的位置信息
+    
+    返回:
+    numpy.ndarray: 机械臂基座坐标系中的3D点,形状为 (3,)。
+    """
+    trans_martix = np.loadtxt(readPath+"trans_new.txt")
+    kinect = KinectCapture()
+    # edge_point = [[1262,362],[988,497]]
+    data_in_kinect = kinect.search_3dImgIndex(edgePoints=edge_point)
+    result = []
+    for i in data_in_kinect:
+        data_in_rm = transform_point(i,trans_martix)
+        print(f"data in kinct:{i}")
+        print(f"data in rm65:{data_in_rm}")
+        result.append(data_in_rm)
+    print(f"the size of pointd in rm65: {len(result)}")
+    return result
 
-    # T = [
-    #     [7.256057292488993227e-01, -5.899991142459756199e-01, -3.541149119567501558e-01, 4.671069980020330945e+02],
-    #     [-6.879575926763845661e-01, -6.111545012448396097e-01 ,-3.914134978345600313e-01, 5.193349503707474923e+02],
-    #     [1.451469462602163196e-02, 5.276279188946841892e-01, -8.493515778773698122e-01, 5.750616593360897468e+02]
-    #     ]
-    # column_vector = np.array([[-0.126147], [-0.0156571], [0.648], [1]])
-    # result = np.matmul(T, column_vector)
-    # print(result)
 
-    #测试点数据
-    # T = np.array([
-    #     [7.256057292488993227e-01, -5.899991142459756199e-01, -3.541149119567501558e-01, 4.671069980020330945e+02],
-    #     [-6.879575926763845661e-01, -6.111545012448396097e-01, -3.914134978345600313e-01, 5.193349503707474923e+02],
-    #     [1.451469462602163196e-02, 5.276279188946841892e-01, -8.493515778773698122e-01, 5.750616593360897468e+02]
-    # ])
-    # column_vector = np.array([[-0.126147], [-0.0156571], [0.648], [1]])
-    # T_pinv = np.linalg.pinv(T)
-    # result = np.matmul(column_vector, T_pinv)
-    # result = np.matmul(T, column_vector)
-    # print(result)
+if __name__ == '__main__':
+    print("---------------------")
+    readPath = "data\\points\\7-1\\5th\\1st\\"
+    # record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
+    # exit()
+    # save_trans_martix(readPath) #然后运行该方法得到其转换矩阵
+    # exit()
+    edge_point = [[1125,556],[1109,462],[1418,398]]
+    cal_trans_data(readPath,edge_point)# 传入像素数组，进行测试or计算
+    # exit()
+    # # 示例调用
+    # filename = 'data\\points\\6-28\\judge\\kinect_chess_3d.txt'  # 确保data.txt文件存在且格式正确
+    # # plot_3d_from_file(filename)
+    # # exit()
+    # data in rm65:[-0.38291764 -0.03035678  0.03475635]
+    # data in rm65:[-0.12366279 -0.06879253 -0.02068814]
+    # 

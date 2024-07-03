@@ -65,7 +65,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pressure_thread = None
         self.showWoundStatus = False
         # self.img_roi = [1255,677,180,40] #roi区域,默认为伤口区域
-        self.img_roi = [1190,730,180,50] #roi区域,默认为伤口区域
+        self.img_roi = [1060,667,185,35] #roi区域,默认为伤口区域
     
 
     # 获取kinect图像
@@ -186,7 +186,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         float_joint = ctypes.c_float * 6
         joint = float_joint()
 
-        str_buf = ctypes.create_string_buffer("suturePin".encode('utf-8'))
+        str_buf = ctypes.create_string_buffer("suture".encode('utf-8'))
         self.rm65.pDll.Change_Tool_Frame(self.rm65.nSocket, str_buf, 1)
 
         current_tool_name = self.rm65.get_currentToolName()
@@ -209,18 +209,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         print("成功运动到原始位置：")
 
-        # joint[0] = 6.269
-        # joint[1] = 18.810
-        # joint[2] = 102.345
-        # joint[3] = -1.216
-        # joint[4] = 60.860
-        # joint[5] = -189.399
-        joint[0] = 8.066
-        joint[1] = 7.113
-        joint[2] = 117.814
-        joint[3] = -1.192
-        joint[4] = 57.064
-        joint[5] = -187.550
+        joint[0] = -0.421
+        joint[1] = 9.728
+        joint[2] = 95.016
+        joint[3] = 2.34
+        joint[4] = 75.415
+        joint[5] = -4.5
+        # joint[0] = 8.066
+        # joint[1] = 7.113
+        # joint[2] = 117.814
+        # joint[3] = -1.192
+        # joint[4] = 57.064
+        # joint[5] = -187.550
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         if ret != 0:
             print("Movec_Cmd 1 失败:" + str(ret))
@@ -336,8 +336,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if not hasattr(self,'kinect'):
             self.kinect = KinectCapture()
         # 保存点云信息
-        filePath = "data\\points\\6-28\\judge\\"
-        self.kinect.save_point_cloud(filename=filePath)
+        file_name = "data\\points\\7-1\\5th\\1st\\"
+        # self.kinect.save_point_cloud(filename=file_name)
+        # sys.exit()
         # 只有在 KinectCapture 实例存在时才调用相应方法
         colorImg,depthImg = self.kinect.get_frames()
         #  检查colorImg是否为None（即图像是否为空）
@@ -347,9 +348,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             x,y,w,h= self.img_roi[0],self.img_roi[1],self.img_roi[2],self.img_roi[3]
             roi_img = rgb_img[y:y+h, x:x+w].copy()
             # 保存图像，并更新计数
-            file_name="data\\points\\"
-            img_name = f"img_{global_count_colorImg}.png" 
-            cv2.imwrite(file_name+f"origin_{global_count_colorImg}.png", rgb_img)
+            # file_name="data\\points\\"
+            cv2.imwrite(file_name+f"origin_1.png", rgb_img)
             # cv2.imwrite(file_name+img_name, roi_img)
             # predict = predictImg()
             # pred = predict.predict_img(roi_img)

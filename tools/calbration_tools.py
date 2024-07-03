@@ -263,10 +263,11 @@ def read_data(filePath, fileNmae):
     # a = os.path.dirname(os.path.realpath(sys.executable))
     # b = os.path.dirname(os.path.dirname(os.path.realpath(sys.executable)))
     # print(b)
-    corners = find_chessboard(img_path=img_path, size=(5, 5))
+    # corners = find_chessboard(img_path=img_path, size=(5, 5))
+    corners,copy_img = find_and_display_chessboard_corners(img_path=img_path, size=(5, 5))
     camera_pts = np.loadtxt(camera_space_path)
     # print(camera_pts.shape)
     color_pts_xy = np.loadtxt(color_space_path)
     img = cv.imread(img_path)
 
-    return camera_pts, color_pts_xy, img, corners
+    return camera_pts, color_pts_xy, img, corners,copy_img

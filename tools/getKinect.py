@@ -226,7 +226,7 @@ class KinectCapture:
 
         for i in edgePointIndex2d:
             point = camera_space_points[i]
-            wound_point_3d.append([point[0], point[1], point[2],1])
+            wound_point_3d.append([point[0], point[1], point[2]])
         # 保存颜色帧图片
         # cv2.imwrite(filename + 'result.png', color_result_image)
         return wound_point_3d
