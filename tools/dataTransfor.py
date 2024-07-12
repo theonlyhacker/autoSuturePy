@@ -117,7 +117,7 @@ def data2Unet(parent_folder):
 
 if __name__ == "__main__":
     #for unet 
-    data2Unet("data\\data\\status_train\\use_wound_roi")
+    data2Unet("data\\points\\7-1\\6th\\1_copy")
     # Example usage:
     # 未缝合好标签记录为0，缝合好标签记录为1
     # modify("data\\data\\status_train\\4-26-img\\collect_7", 45)

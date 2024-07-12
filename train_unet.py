@@ -12,7 +12,7 @@ import os
 
 
 #原来的epoch是40 batch_size=1
-def train_net(net, device, train_data_path,test_data_path, epochs=15, batch_size=4, lr=0.0001):
+def train_net(net, device, train_data_path,test_data_path, epochs=20, batch_size=8, lr=0.0001):
     # 加载训练集
     train_isbi_dataset = ISBI_Loader(train_data_path)
     test_isbi_dataset = ISBI_Loader(test_data_path)
@@ -105,6 +105,7 @@ if __name__ == "__main__":
     CUR_PATH=os.path.dirname(os.path.realpath(__file__))
     # print("CUR_PATH",CUR_PATH)
     # exit(0)
-    train_data_path = os.path.join(CUR_PATH, "data\\data\\status_train\\use_wound_roi\\data\\train\\")
-    test_data_path = os.path.join(CUR_PATH, "data\\data\\status_train\\use_wound_roi\\data\\test\\")
+    filepath = "data\\points\\7-1\\6th\\1_copy\\data"
+    train_data_path = os.path.join(CUR_PATH, filepath+"\\train\\")
+    test_data_path = os.path.join(CUR_PATH, filepath+"\\test\\")
     train_net(net, device, train_data_path=train_data_path,test_data_path=test_data_path)

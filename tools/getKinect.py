@@ -9,7 +9,7 @@ from sortedcontainers import SortedSet
 import open3d as o3d
 import ctypes
 import matplotlib.pyplot as plt
-from scipy.interpolate import splprep, splev
+from scipy.interpolate import splprep, splev, CubicSpline
 from scipy.spatial.transform import Rotation as R
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import pandas as pd
@@ -359,162 +359,130 @@ class KinectCapture:
 
         return image
 
-    def getTurePointsRm65(self,data):
-        # 从txt文件中读取数据
-        # data = np.loadtxt(file_path, usecols=(0, 1, 2))  # 读取三列数据
+    # 生成待运动点输入伤口带的3d点信息集合，待运动点个数，返回其六维位姿点
+    def getTurePointsRm65(self, data, num_segments):
+        # data = np.loadtxt(data + "wound_data_rm65.txt", usecols=(0, 1, 2))  # 读取三列数据# 从txt文件中读取数据
         data = np.array(data)
-        x = data[:, 0]
-        y = data[:, 1]
+        scale_factor = 1
+        x = data[:, 0]*scale_factor
+        y = data[:, 1]*scale_factor
         z = data[:, 2]
         # 对数据进行排序，确保按照 x 的顺序排列
         sorted_indices = np.argsort(x)
         x = x[sorted_indices]
         y = y[sorted_indices]
         z = z[sorted_indices]
-        # 样条插值
-        tck, u = splprep([x, y, z], s=1)  # 调整 s 参数以增加平滑度
-        u_fine = np.linspace(0, 1, num=500)
-        x_new, y_new, z_new = splev(u_fine, tck)
-        # 计算曲线总长度
-        distances = np.sqrt(np.diff(x_new)**2 + np.diff(y_new)**2 + np.diff(z_new)**2)
+        # # 样条插值
+        tck, u = splprep([x, y], s=1)  # 调整 s 参数以增加平滑度——整个w伤口s=0.005，只有半截c时，s=1
+        u_fine = np.linspace(0, 1, num=1000)
+        x_new, y_new = splev(u_fine, tck,der=0)
+        # 计算曲线总长度--取消z_new的模拟长度，二维平面
+        distances = np.sqrt(np.diff(x_new) ** 2 + np.diff(y_new) ** 2)
+        # 这种累计和受限于拟合点的分布均匀程度，在曲线变化比较明显的场景不适用
+        # cumulative_distances = np.cumsum(distances)#计算距离的累积和，得到每个点到曲线起点的累积距离。
+
         total_length = np.sum(distances)
-        # 分段数
-        num_segments = 10
-        segment_length = total_length / num_segments
-        # 计算等距的分段点
-        center_points = []
-        current_length = 0
-        for i in range(1, len(u_fine)):
-            current_length += distances[i-1]
-            if current_length >= segment_length:
-                center_points.append([x_new[i], y_new[i], z_new[i]])
-                current_length = 0
-        center_points = np.array(center_points)
-        # 确保有 num_segments 个中心点
-        while len(center_points) < num_segments:
-            center_points = np.append(center_points, [[x_new[-1], y_new[-1], z_new[-1]]], axis=0)
-        # 计算每个中心点的旋转矩阵
-        z_axis = np.array([0, 0, -1])
+        print("曲线总长度:", total_length)
+        segment_length = total_length / num_segments# 计算等距的分段点
+        # print("分段长度:", segment_length)
+        # 查找均匀分布的分段点坐标
+        segment_points = [0]  # 起点
+        current_distance = 0
+        for i in range(1, num_segments):
+            current_distance += segment_length
+            target_index = np.searchsorted(np.cumsum(distances), current_distance)
+            segment_points.append(target_index)
+        segment_points.append(len(x_new) - 1)  # 终点
+        # 获取等距的插值点并缩放回原始范围
+        sampled_points = np.array([[x_new[i] / scale_factor, y_new[i] / scale_factor] for i in segment_points])
+        # 计算并打印每段长度
+        # for i in range(1, len(sampled_points)):
+        #     segment_distance = np.linalg.norm(sampled_points[i] - sampled_points[i - 1])
+        #     print(f"Segment {i}: {segment_distance:.6f}")
         poses = []
-        for i in range(1, len(center_points) - 1):
-            p1 = center_points[i - 1]
-            p2 = center_points[i + 1]
-            direction = p2 - p1
-            direction /= np.linalg.norm(direction)
-            x_axis = direction
-            y_axis = np.cross(z_axis, x_axis)
-            y_axis /= np.linalg.norm(y_axis)
-            z_axis_corrected = np.cross(x_axis, y_axis)
-            rotation_matrix = np.vstack([x_axis, y_axis, z_axis_corrected]).T
-            euler_angles = R.from_matrix(rotation_matrix).as_euler('xyz')
-            # 修正rz角度
-            if euler_angles[2] < 0:
-                euler_angles[2] += np.pi
-            else:
-                euler_angles[2] -= np.pi
-            pose = np.concatenate((center_points[i], euler_angles))
-            poses.append(pose)
+        initial_euler_angles = [3.141, 0, 0]
+        initial_rotation = R.from_euler('xyz', initial_euler_angles).as_matrix()
+        rz_values = []
+        # 直线斜率
+        # for i in range(len(sampled_points) - 1):
+        #     p1 = sampled_points[i]
+        #     p2 = sampled_points[i + 1]
+        #     direction = p2 - p1
+        #     direction /= np.linalg.norm(direction)
+        #     line_slope = np.arctan2(direction[1], direction[0])  # 计算该点到下一点连线的斜率
+        #     # perpendicular_slope = line_slope + np.pi / 2  # 计算垂直线的斜率
+        #     perpendicular_slope = -line_slope if line_slope >= 0 else -line_slope
+        #     rz_values.append(perpendicular_slope)
+        # rz_values.append(rz_values[-1])  # 最后一个点的 rz 值使用前一个点的 rz 值
+        # 曲线斜率
+        dx, dy = splev(u_fine, tck, der=1) # 计算样条插值在每个插值点的切线斜率
+        # 计算切线斜率（第一导数），
+        for i in range(len(sampled_points)):
+            slope = np.arctan2(dy[segment_points[i]], dx[segment_points[i]])  # 计算该点的切线斜率
+            slope = -slope  # 取相反数，也就是代表先往哪个方向转，往正or负方向
+            rz_values.append(slope)
+        for i in range(len(sampled_points)):
+            p = sampled_points[i]
+            rotation_matrix = R.from_euler('z', rz_values[i]).as_matrix()
+            corrected_rotation_matrix = initial_rotation @ rotation_matrix
+            euler_angles = R.from_matrix(corrected_rotation_matrix).as_euler('xyz')
+            pose = np.concatenate((p, euler_angles))
+            if not np.isnan(pose).any():
+                poses.append(pose)
         poses = np.array(poses)
-        poses = poses[np.argsort(poses[:, 0])[::-1]]# 将结果按x坐标降序
+        # kinect测不准，导致需要进行补偿以及固定某些数值
+        poses = np.insert(poses, 2, z[0], axis=1)# 在每行中添加固定的z值
+        poses = poses[np.argsort(poses[:, 0])[::-1]]  # 将结果按x坐标降序排列
+        # 针对于偏移量，固定值在c形状下不好用，现在采用线性变换
+        # poses[:, 1] -= 0.025 # 固定值方法 将y值统一减去0.02
+        # 线性偏移量的方法
+        initial_offset = 0.02# 初始偏移值
+        total_offset = 0.008# 总偏移量
+        individual_offset = total_offset / len(poses)# 计算每个点的偏移量
+        # 调整后的 y 值
+        for i in range(len(poses)):
+            y_offset = initial_offset + i * individual_offset
+            poses[i, 1] -= y_offset
+        
         for pose in poses:
             formatted_pose = ', '.join(f"{coord:.6f}" for coord in pose)
             print(formatted_pose)
-        poses = np.around(poses, decimals=6)# 将数组中的数据四舍五入到六位小数
+        poses = np.around(poses, decimals=6)  # 将数组中的数据四舍五入到六位小数
         return poses
 
-def plotPy_CLoss(file_path):
-    data1 = np.loadtxt(file_path + 'camera_space_points.txt')
-    # 创建三维散点图
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(data1[:, 0], data1[:, 1], data1[:, 2], label='Data 1')
-    # 设置轴标签
+
+# 渲染伤口带规划点和实际点云信息，查看其分布
+def plotPy_CLoss(data1,data2):
+    # Create the 2D plot
+    fig, ax = plt.subplots()
+    # Plot data1 as scatter points in blue
+    ax.scatter(data1[:, 0], data1[:, 1], color='blue', label='Data 1')
+    # Plot data2 as a red line
+    ax.plot(data2[:, 0], data2[:, 1], color='red', label='Data 2')
+    # Set labels
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_title('wound shape data')
+    ax.set_title('2D Plot of Wound Shape Data')
     ax.legend()
-    # 设置三个轴的范围相同
-    max_range = np.array([data1[:, 0].max() - data1[:, 0].min(), 
-                        data1[:, 1].max() - data1[:, 1].min(), 
-                        data1[:, 2].max() - data1[:, 2].min()]).max() / 2.0
-    mid_x = (data1[:, 0].max() + data1[:, 0].min()) * 0.5
-    mid_y = (data1[:, 1].max() + data1[:, 1].min()) * 0.5
-    mid_z = (data1[:, 2].max() + data1[:, 2].min()) * 0.5
+    # Set the same scale for both x and y axes
+    max_range = np.array([data1[:, 0].max() - data1[:, 0].min(),
+                          data1[:, 1].max() - data1[:, 1].min(),
+                          data2[:, 0].max() - data2[:, 0].min(),
+                          data2[:, 1].max() - data2[:, 1].min()]).max() / 2.0
+    
+    mid_x = (np.concatenate((data1[:, 0], data2[:, 0])).max() + np.concatenate((data1[:, 0], data2[:, 0])).min()) * 0.5
+    mid_y = (np.concatenate((data1[:, 1], data2[:, 1])).max() + np.concatenate((data1[:, 1], data2[:, 1])).min()) * 0.5
+    
     ax.set_xlim(mid_x - max_range, mid_x + max_range)
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
-    ax.set_zlim(mid_z - max_range, mid_z + max_range)
-
-    # 显示图形
+    
+    # Display the plot
     plt.show()
 
-
-# 真实待运动轨迹点
-def read_and_process_points(file_path):
-    # 从txt文件中读取数据
-    data = np.loadtxt(file_path, usecols=(0, 1, 2))  # 读取三列数据
-    x = data[:, 0]
-    y = data[:, 1]
-    z = data[:, 2]
-    # 对数据进行排序，确保按照 x 的顺序排列
-    sorted_indices = np.argsort(x)
-    x = x[sorted_indices]
-    y = y[sorted_indices]
-    z = z[sorted_indices]
-    # 样条插值
-    tck, u = splprep([x, y, z], s=1)  # 调整 s 参数以增加平滑度
-    u_fine = np.linspace(0, 1, num=500)
-    x_new, y_new, z_new = splev(u_fine, tck)
-    # 计算曲线总长度
-    distances = np.sqrt(np.diff(x_new)**2 + np.diff(y_new)**2 + np.diff(z_new)**2)
-    total_length = np.sum(distances)
-    # 分段数
-    num_segments = 10
-    segment_length = total_length / num_segments
-    # 计算等距的分段点
-    center_points = []
-    current_length = 0
-    for i in range(1, len(u_fine)):
-        current_length += distances[i-1]
-        if current_length >= segment_length:
-            center_points.append([x_new[i], y_new[i], z_new[i]])
-            current_length = 0
-    center_points = np.array(center_points)
-    # 确保有 num_segments 个中心点
-    while len(center_points) < num_segments:
-        center_points = np.append(center_points, [[x_new[-1], y_new[-1], z_new[-1]]], axis=0)
-    # 计算每个中心点的旋转矩阵
-    z_axis = np.array([0, 0, -1])
-    poses = []
-    for i in range(1, len(center_points) - 1):
-        p1 = center_points[i - 1]
-        p2 = center_points[i + 1]
-        direction = p2 - p1
-        direction /= np.linalg.norm(direction)
-        x_axis = direction
-        y_axis = np.cross(z_axis, x_axis)
-        y_axis /= np.linalg.norm(y_axis)
-        z_axis_corrected = np.cross(x_axis, y_axis)
-        rotation_matrix = np.vstack([x_axis, y_axis, z_axis_corrected]).T
-        euler_angles = R.from_matrix(rotation_matrix).as_euler('xyz')
-        # 修正rz角度
-        if euler_angles[2] < 0:
-            euler_angles[2] += np.pi
-        else:
-            euler_angles[2] -= np.pi
-        pose = np.concatenate((center_points[i], euler_angles))
-        poses.append(pose)
-    poses = np.array(poses)
-    poses = poses[np.argsort(poses[:, 0])[::-1]]# 将结果按x坐标降序
-    for pose in poses:
-        formatted_pose = ' '.join(f"{coord:.6f}" for coord in pose)
-        print(formatted_pose)
-    return poses
-
-
-def show_dis():
+# 显示待运动点距离
+def show_dis(file_path):
     # 从本地txt文件读取数据，假设文件名为data.txt，数据以空格分隔
-    data = np.loadtxt('data\\points\\test_roi_3d\\test2.txt', usecols=(0, 1))
+    data = np.loadtxt(file_path, usecols=(0, 1))
     # 提取x和y列    
     x = data[:, 0]
     y = data[:, 1]
@@ -534,26 +502,25 @@ def show_dis():
     plt.ylabel('Y')
     plt.title('Points and Distances')
     plt.grid(True)
+    # Ensure the x and y axes have the same scale
+    max_range = max(np.max(x) - np.min(x), np.max(y) - np.min(y)) / 2.0
+    mid_x = (np.max(x) + np.min(x)) / 2.0
+    mid_y = (np.max(y) + np.min(y)) / 2.0
+    plt.xlim(mid_x - max_range, mid_x + max_range)
+    plt.ylim(mid_y - max_range, mid_y + max_range)
     plt.show()
 
 if __name__ == "__main__":
-    show_dis()
+    kinect = KinectCapture()
+    # 文件保存位置
+    file_path = "data\\points\\7-11\\4th\\3rd\\"
+    data = np.loadtxt(file_path + 'wound_data_rm65.txt')#特征点数据，kinect相机检索到的3d点集合
+    wound_points_name = "plan_data_1.txt"
+    plan_points = kinect.getTurePointsRm65(data,num_segments=10)##还存在问题，待修改
+    np.savetxt(file_path+wound_points_name,plan_points,fmt='%.6f')
     exit()
-    pose_data = read_and_process_points("data\\points\\cycle_half_2.txt")
-    # plotPy_CLoss('data\\points\\test_roi_3d\\')
-    # get_rm65_points()
-    exit(0)
-    # 使用示例
-    processor = KinectCapture()
-    # depth_frame = processor.kinect.get_last_depth_frame()
-    # result = processor.get_color_space_points(depth_frame)
-    # print("result:", result)
-    # 保存点云测试代码
-    # color_image, depth_image = processor.get_frames()
-    # if color_image is not None and depth_image is not None:
-    #     start_time = time.time()
-    #     point_cloud = processor.get_point_cloud(color_image)
-    #     processor.save_point_cloud('D:\\Program Files\\company\\Jinjia\\Projects\\test_data\\112\\')
-    #     end_time = time.time()
-    #     execution_time = end_time - start_time
-    #     print(f"Execution time: {execution_time} seconds")
+    # show_dis(file_path+wound_points_name)
+    # exit()
+    plan_points = np.loadtxt(file_path + wound_points_name)
+    plotPy_CLoss(data,plan_points)
+    exit()

@@ -2,10 +2,10 @@ import numpy as np
 import os
 import sys
 import cv2 as cv
-from getKinect import KinectCapture
-import calbration_tools
-# from tools.getKinect import KinectCapture
-# from tools import calbration_tools
+# from getKinect import KinectCapture
+# import calbration_tools
+from tools.getKinect import KinectCapture
+from tools import calbration_tools
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -31,7 +31,6 @@ def load_robot_data(filePath):
     # 打印二维数组
     print(data)
 
-
 def desk_reorder(x):
     """
     将Kinect的采集的角点按照“从前往后、从左往右”的顺序排列
@@ -52,7 +51,6 @@ def desk_reorder(x):
         res = np.concatenate([my_sort(tmp[0:2]), my_sort(tmp[5:7]),
                               my_sort(tmp[10:12])], axis=0)
     return res
-
 
 def box_reorder(x):
     """
@@ -79,18 +77,15 @@ def box_reorder(x):
                               ], axis=0)
     return res
 
-
 def kinect2robot_box(robot_pts, rotate_mat, trans, savePath):
     transformed_pts = np.matmul((robot_pts-trans.reshape([1, 3])), np.linalg.inv(rotate_mat.T))
     np.savetxt(savePath + "\\box_transformed_pts.txt", transformed_pts)
     return transformed_pts
 
-
 def kinect2robot_desk(robot_pts, rotate_mat, trans, savePath):
     transformed_pts = np.matmul((robot_pts-trans.reshape([1, 3])), np.linalg.inv(rotate_mat.T))
     np.savetxt(savePath + "/desk_transformed_pts.txt", transformed_pts)
     return transformed_pts
-
 
 def record_chess_order(readPath):
     # readPath = "data\\points\\7-1\\third\\"
@@ -110,7 +105,6 @@ def record_chess_order(readPath):
 
     np.savetxt(readPath + "\\kinect_chess_3d.txt", pts_kinect_chess)
     cv.imwrite(readPath+"\\show_corners_order.png",copy_img)
-
 
 def plot_3d_from_file(filename):
     """
@@ -249,7 +243,7 @@ def save_trans_martix(filePath):
     # robot_point = transform_point(camera_point, transformation_matrix)
     # print("机械臂基座坐标系中的点:\n", robot_point)
 
-def cal_trans_data(readPath,edge_point):
+def cal_trans_data(edge_point):
     """
     计算相机空间与机械臂的转换对应关系
     
@@ -259,6 +253,7 @@ def cal_trans_data(readPath,edge_point):
     返回:
     numpy.ndarray: 机械臂基座坐标系中的3D点,形状为 (3,)。
     """
+    readPath= "data\\points\\7-1\\5th\\1st\\"
     trans_martix = np.loadtxt(readPath+"trans_new.txt")
     kinect = KinectCapture()
     # edge_point = [[1262,362],[988,497]]
@@ -266,8 +261,8 @@ def cal_trans_data(readPath,edge_point):
     result = []
     for i in data_in_kinect:
         data_in_rm = transform_point(i,trans_martix)
-        print(f"data in kinct:{i}")
-        print(f"data in rm65:{data_in_rm}")
+        # print(f"data in kinct:{i}")
+        # print(f"data in rm65:{data_in_rm}")
         result.append(data_in_rm)
     print(f"the size of pointd in rm65: {len(result)}")
     return result
@@ -275,18 +270,25 @@ def cal_trans_data(readPath,edge_point):
 
 if __name__ == '__main__':
     print("---------------------")
-    readPath = "data\\points\\7-1\\5th\\1st\\"
+    readPath = "data\\points\\7-8\\6th\\"
+    # 1 # 保存点云信息
+    # kinect = KinectCapture()
+    # kinect.save_point_cloud(filename=readPath)
+    # sys.exit()
+    # 2
     # record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
     # exit()
+    # 记录机械臂在这些点的位置信息得到robot_Pts.txt文档，记录顺序与角点顺序一致
+    # 3
     # save_trans_martix(readPath) #然后运行该方法得到其转换矩阵
     # exit()
-    edge_point = [[1125,556],[1109,462],[1418,398]]
-    cal_trans_data(readPath,edge_point)# 传入像素数组，进行测试or计算
-    # exit()
+    # 4--测试
+    edge_point = [[1100,450],[1125,543],[1395,373]]
+    cal_trans_data(edge_point)# 传入像素数组，进行测试or计算--记得修改读取权重文件的路径
+    exit()
     # # 示例调用
-    # filename = 'data\\points\\6-28\\judge\\kinect_chess_3d.txt'  # 确保data.txt文件存在且格式正确
-    # # plot_3d_from_file(filename)
-    # # exit()
-    # data in rm65:[-0.38291764 -0.03035678  0.03475635]
-    # data in rm65:[-0.12366279 -0.06879253 -0.02068814]
-    # 
+    plot_3d_from_file(readPath+"\\wound\\wound_data_rm65.txt")
+    file_path = "data\\points\\7-8\\4th\\"
+    camera_points_file = file_path + "camera_points.txt"
+    robot_points_file = file_path + "robots_points.txt"
+    transformation_matrix_file = file_path + "transf.txt"

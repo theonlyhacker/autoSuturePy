@@ -64,8 +64,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.work_thread = None
         self.pressure_thread = None
         self.showWoundStatus = False
-        # self.img_roi = [1255,677,180,40] #roi区域,默认为伤口区域
-        self.img_roi = [1060,667,185,35] #roi区域,默认为伤口区域
+        # self.img_roi = [1064,504,330,50] #roi区域,S曲线整个
+        self.img_roi = [1062,512,150,48] #roi区域,s曲线部分c
+        # self.img_roi = [1058,478,157,36] #roi区域,短粗线部分
+        self.run_record_path = "data\\points\\7-11\\4th\\6th\\"
     
 
     # 获取kinect图像
@@ -117,7 +119,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # cv2.imwrite(filename+"\\origin_color.jpg",colorImg)
         x,y,w,h= self.img_roi[0],self.img_roi[1],self.img_roi[2],self.img_roi[3]
         roi_img = colorImg[y:y+h, x:x+w].copy()
-        cv2.imwrite(filename + f"\\{self.record_info_count}_roi_color.jpg",roi_img)
+        cv2.imwrite(filename + f"\\{self.record_info_count}_High_roi.jpg",roi_img)
         print("当前位置所有信息成功记录")
 
 
@@ -180,15 +182,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if(not hasattr(self, 'rm65')):
             self.rm65 = RobotConnection("192.168.1.19", 8080)
             self.rm65.connect()
+ 
+        #修改机械臂工具坐标系 
         current_tool_name = self.rm65.get_currentToolName()
         print("当前工具坐标系:" + str(current_tool_name))
-
         float_joint = ctypes.c_float * 6
         joint = float_joint()
-
-        str_buf = ctypes.create_string_buffer("suture".encode('utf-8'))
+        str_buf = ctypes.create_string_buffer("autoSu".encode('utf-8'))
         self.rm65.pDll.Change_Tool_Frame(self.rm65.nSocket, str_buf, 1)
-
         current_tool_name = self.rm65.get_currentToolName()
         print("当前工具坐标系(修改之后):" + str(current_tool_name))
 
@@ -197,7 +198,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.timer_pos.timeout.connect(self.showRM65Position)
         self.timer_pos.start(150)  # 设置定时器触发间隔，单位是毫秒
         # 实例化机械臂对象
-        self.render_rm65 = self.rm65
+        # self.render_rm65 = self.rm65
 
         joint[0] = 0
         joint[1] = 0
@@ -208,51 +209,48 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # # MoveJ 运动
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         print("成功运动到原始位置：")
-
-        joint[0] = -0.421
-        joint[1] = 9.728
-        joint[2] = 95.016
-        joint[3] = 2.34
-        joint[4] = 75.415
-        joint[5] = -4.5
-        # joint[0] = 8.066
-        # joint[1] = 7.113
-        # joint[2] = 117.814
-        # joint[3] = -1.192
-        # joint[4] = 57.064
-        # joint[5] = -187.550
+        #初始化相机之后就先提取roi区域，启动相机子线程--保证获取区域不受限制 
+        self.show_kinect_thread = show_roi_thread(self)
+        self.show_kinect_thread.start()
+        self.show_kinect_thread.show_status_signal.emit(3)
+        print("显示子线程开启")
+        # joint[0] = -0.421
+        # joint[1] = 9.728
+        # joint[2] = 95.016
+        # joint[3] = 2.34
+        # joint[4] = 75.415
+        # joint[5] = -4.5
+        joint[0] = 5.06
+        joint[1] = 7.823
+        joint[2] = 97.294
+        joint[3] = -2.492
+        joint[4] = 74.47
+        joint[5] = 170.7
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         if ret != 0:
             print("Movec_Cmd 1 失败:" + str(ret))
             sys.exit()
         print("成功运动到待缝合初始位置：")
-        print("显示子线程开启")
-        self.show_kinect_thread = show_roi_thread(self)
-        self.show_kinect_thread.start()
-        self.show_kinect_thread.show_status_signal.emit(3)
-        # 初始化显示区域，增加一个定时器用作刷新该区域
         print("系统初始化成功，可以点击运行按钮")
-
+        # 系统所有数据记录路径，将在子线程中路径的定义现在统一交由mian线程控制--集成
+        
+ 
 
     #开始运动按钮 
     def on_runRM65(self):
-        # 暂时将图像可视化实时关闭--抬升阶段会影响状态判断的数据输入？
-        if(hasattr(self, 'timer_img')):
-            self.timer_img.stop()
-            print("kinect相机定时器已停止--为了防止状态判断时的数据输入干扰")
-
         if(not hasattr(self, 'rm65')):
             print("开始run rm65线程")
             rm65 = RobotConnection("192.168.1.19", 8080)
             rm65.connect()
         # 启动机械臂运动线程
         points = []
-        with open('data\\points\\6-21\\run.txt', 'r') as file:
+        # self.run_record_path = "data\\points\\7-11\\4th\\5th\\"
+        with open(self.run_record_path+'plan_data.txt', 'r') as file:
             lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
                 # x, y, z = points_xyz[0],points_xyz[1],points_xyz[2]
-                # point = DevMsg(x*0.001, y*0.001, z*0.001, -3.117, -0.013, -2.917)
+                # point = DevMsg(x*0.001, y*0.001, z*0.001, 3.103, 0, -2.879)
                 # cycle point
                 x, y, z, rx,ry,rz = points_xyz[0],points_xyz[1],points_xyz[2],points_xyz[3],points_xyz[4],points_xyz[5]
                 point = DevMsg(x, y, z, rx, ry, rz)
@@ -264,8 +262,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     #更新机械臂位姿信息 
     def showRM65Position(self):
-        if hasattr(self, 'render_rm65'):
-            cur_pose = self.render_rm65.get_currentPose()
+        if hasattr(self, 'timer_pos'):
+            cur_pose = self.rm65.get_currentPose()
             self.rm65_px.setText(f"{cur_pose.px:.3f}")
             self.rm65_py.setText(f"{cur_pose.py:.3f}")
             self.rm65_pz.setText(f"{cur_pose.pz:.3f}")
@@ -282,7 +280,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.work_thread.stop_signal.emit()
             self.work_thread = None
     
-    # 在自动缝合中暂停该线程
+    # 暂停按钮--暂时用作其他功能-输出当前位姿
     def on_stopCurrentRM(self):
         # 暂时用于输出机械臂当前位姿
         print("-------------------")
@@ -291,8 +289,26 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.rm65.connect()
         cur_point = self.rm65.get_currentPose()
         print(f"{cur_point.px:.6f} {cur_point.py:.6f} {cur_point.pz:.6f} {cur_point.rx:.6f} {cur_point.ry:.6f} {cur_point.rz:.6f}")
-        print("暂停按钮--")
-
+        # print("暂停按钮--")
+        # 通电
+        self.rm65.pDll.Get_Tool_Voltage.argtypes = (ctypes.c_int,ctypes.POINTER(ctypes.c_byte))
+        self.rm65.pDll.Get_Tool_Voltage.restype = ctypes.c_int
+        res = ctypes.c_byte()# 定义一个 ctypes.c_byte 类型的变量
+        self.rm65.pDll.Get_Tool_Voltage(self.rm65.nSocket, ctypes.byref(res))# 调用 Get_Tool_Voltage 函数时，传递 res 的地址
+        print(f"Current Voltage:  {res.value}")
+        self.rm65.pDll.Set_Tool_Voltage.argtypes = (ctypes.c_int, ctypes.c_byte, ctypes.c_bool)
+        self.rm65.pDll.Set_Tool_Voltage.restype = ctypes.c_int
+        voltage_type = 3 # 设置输入电压为24V 类型为3 # 电源输出类型：0-0V，1-5V，2-12V，3-24V 
+        block = True  # 假设需要阻塞执行
+        set_voltage_result = self.rm65.pDll.Set_Tool_Voltage(self.rm65.nSocket, voltage_type, block)
+        print(f"Set Voltage Result: {set_voltage_result}")
+        # 查看当前电压
+        current_voltage = ctypes.c_byte()
+        get_voltage_result = self.rm65.pDll.Get_Tool_Voltage(self.rm65.nSocket, ctypes.byref(current_voltage))
+        print(f"Get Voltage Result: {get_voltage_result}")
+        print(f"Current Voltage: {current_voltage.value}")
+        # 通信
+        # ret = self.rm65.pDll.Set_Modbus_Mode(self.rm65.nSocket,1,115200,1000,1)
 
     # 开始示教 
     def on_teach(self):
@@ -315,7 +331,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 如果没有压力传感器对象，就创建一个
         if(not hasattr(self,"serial")):
             self.serial=serial.Serial('COM4', 115200)
-        self.record_info = "data\\data\\April\\4-24\\1st"
+        self.record_info = "data\\points\\7-1\\6th\\1_copy\\"
         self.record_info_count = 0
         print("现在可以开始示教了...")
         
@@ -335,25 +351,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print("修改为收集第一张图像确定roi区域")
         if not hasattr(self,'kinect'):
             self.kinect = KinectCapture()
-        # 保存点云信息
-        file_name = "data\\points\\7-1\\5th\\1st\\"
-        # self.kinect.save_point_cloud(filename=file_name)
-        # sys.exit()
+        # 图像信息
+        file_name = "data\\points\\7-11\\"
         # 只有在 KinectCapture 实例存在时才调用相应方法
         colorImg,depthImg = self.kinect.get_frames()
         #  检查colorImg是否为None（即图像是否为空）
         if colorImg is not None:
             # 从四通道的RGBA转换为三通道的RGB
             rgb_img = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
-            x,y,w,h= self.img_roi[0],self.img_roi[1],self.img_roi[2],self.img_roi[3]
-            roi_img = rgb_img[y:y+h, x:x+w].copy()
-            # 保存图像，并更新计数
-            # file_name="data\\points\\"
             cv2.imwrite(file_name+f"origin_1.png", rgb_img)
-            # cv2.imwrite(file_name+img_name, roi_img)
-            # predict = predictImg()
-            # pred = predict.predict_img(roi_img)
-            # cv2.imwrite(file_name+f"pred_{global_count_colorImg}.png", pred)
         print("图像保存成功")
         sys.exit()
 
