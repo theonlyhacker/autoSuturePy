@@ -15,12 +15,13 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
-from tools.common import com_cal_trans_data
+from tools.calibration import cal_trans_data
 
 # roi区域--统一在这里进行更改--也可以用信号和槽的方式进行传递？？？
-# x,y,w,h = 1058,478,157,36 #--短粗线--
-x,y,w,h = 1062,512,150,48 # s曲线部分c--
+x,y,w,h = 1113,477,154,41 #--短粗线--
+# x,y,w,h = 1062,512,150,48 # s曲线部分c--
 # x,y,w,h = 1064,504,330,50 # s曲线整个--
+# x,y,w,h = 1263,380,202,80#兔子
 # Lookup table for CRC calculation
 aucCRCHi = [
     0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
@@ -279,19 +280,19 @@ class show_roi_thread(QThread):
                     # 将得到的pred图像扩充为1920x1080大小的图像，然后保存其roi位置信息到本地，然后进行函数拟合得到分段点
                     final_canvas = np.ones((1080, 1920), dtype=np.uint8) * 255 # 创建一个白色的图像，大小为1920x1080--由于是二值化图像，因此创建模板是单通道的
                     final_canvas[y:y+h, x:x+w] = wound_shape_data
-                    cv2.imwrite(filePath+'final_output.png', final_canvas)# 保存最终图像
                     edgePoints = []
                     _, labels, stats, _ = cv2.connectedComponentsWithStats(final_canvas, connectivity=8)# 寻找连通域  保存最大连通域内所有点，只有边缘点太少了，这里保存所有点
                     y_coords, x_coords = np.where(labels == 0)
-                    edgePoints = np.column_stack((x_coords, y_coords))# 将x和y坐标存储在两个数组中
-                    wound_point_3d = com_cal_trans_data(edgePoints)#计算得到在rm65基坐标系下这些点的坐标
-                    # wound_point_3d=self.kinect.search_3dImgIndex(edgePoints)
+                    edgePoints = np.column_stack((x_coords, y_coords))# 将x和y坐标存储在两个数 组中
+                    # wound_data_kinect=self.kinect.search_3dImgIndex(edgePoints)#得到roi目标xy系列坐标后得到其三维空间坐标(kinect坐标系下)
+                    wound_point_3d = cal_trans_data(edgePoints)#计算得到这些点在rm65基坐标系下的表达式
                     func_data=[]
                     for i in wound_point_3d:
                         func_data.append([i[0],i[1],0.027])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
-                    np.savetxt(filePath+"wound_data_rm65.txt",func_data, fmt='%.6f')
                     plan_wound_data = self.kinect.getTurePointsRm65(func_data,10)
+                    np.savetxt(filePath+"wound_data_rm65.txt",func_data, fmt='%.6f')
                     np.savetxt(filePath+"plan_data.txt",plan_wound_data, fmt='%.6f')
+                    cv2.imwrite(filePath+'wound_predict.png', final_canvas)# 保存最终图像
                     self.change_show_status(1)
 
     @pyqtSlot(int)

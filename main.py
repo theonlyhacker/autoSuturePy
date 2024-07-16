@@ -65,32 +65,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.pressure_thread = None
         self.showWoundStatus = False
         # self.img_roi = [1064,504,330,50] #roi区域,S曲线整个
-        self.img_roi = [1062,512,150,48] #roi区域,s曲线部分c
-        # self.img_roi = [1058,478,157,36] #roi区域,短粗线部分
-        self.run_record_path = "data\\points\\7-11\\4th\\6th\\"
-    
-
-    # 获取kinect图像
-    def get_colorImg(self):
-        if hasattr(self, 'kinect'):
-            # 只有在 KinectCapture 实例存在时才调用相应方法
-            colorImg,depthImg = self.kinect.get_frames()
-            # 检查colorImg是否为None（即图像是否为空）
-            if colorImg is not None:
-                # 从四通道的RGBA转换为三通道的RGB
-                rgb_img = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
-                x,y,w,h= self.img_roi[0],self.img_roi[1],self.img_roi[2],self.img_roi[3]
-                scale_img = rgb_img[y:y+h, x:x+w].copy()
-                # scale_img = cv2.resize(roi_img, (480, 270))
-                # 将图像转换为QImage
-                height, width, channel = scale_img.shape
-                bytes_per_line = 3 * width
-                q_image = QImage(scale_img.data, width, height,bytes_per_line, QImage.Format_BGR888)
-                # 在 QLabel 中显示图像，并使用填充方式
-                self.label_img.setPixmap(QPixmap.fromImage(q_image))
-                # self.label_img.setAlignment(Qt.AlignCenter)
-                self.label_img.setScaledContents(True)
-                # 在 QLabel 中显示图像，并保持原比例
+        # self.img_roi = [1062,512,150,48] #roi区域,s曲线部分c
+        # self.img_roi = [1263,380,202,80]#兔子
+        self.img_roi = [1113,477,154,41] #roi区域,短粗线部分
+        self.run_record_path = "data\\points\\7-15\\2nd\\"
 
 
     #  高点记录按钮--记录当前伤口信息，伤口2d信息，三维点云信息，压力传感器信息，提起来的高度差
@@ -197,8 +175,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.timer_pos = QTimer(self)
         self.timer_pos.timeout.connect(self.showRM65Position)
         self.timer_pos.start(150)  # 设置定时器触发间隔，单位是毫秒
-        # 实例化机械臂对象
-        # self.render_rm65 = self.rm65
 
         joint[0] = 0
         joint[1] = 0
@@ -235,7 +211,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 系统所有数据记录路径，将在子线程中路径的定义现在统一交由mian线程控制--集成
         
  
-
     #开始运动按钮 
     def on_runRM65(self):
         if(not hasattr(self, 'rm65')):
@@ -270,7 +245,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.rm65_rx.setText(f"{cur_pose.rx:.3f}")
             self.rm65_ry.setText(f"{cur_pose.ry:.3f}")
             self.rm65_rz.setText(f"{cur_pose.rz:.3f}")
-
 
     # 机械臂急停
     def on_stopRM65(self):
@@ -346,22 +320,37 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.record_info_count = 0
         print('资源已释放，示教结束')
     
-    # 修改为收集第一张图像确定roi区域--待删除废弃
+    # 示教前图像信息采集
     def on_imgCollect(self):
-        print("修改为收集第一张图像确定roi区域")
+        cur_img_num = 0
+        print("修改为收集图像以及确定roi区域")
         if not hasattr(self,'kinect'):
             self.kinect = KinectCapture()
         # 图像信息
-        file_name = "data\\points\\7-11\\"
-        # 只有在 KinectCapture 实例存在时才调用相应方法
-        colorImg,depthImg = self.kinect.get_frames()
-        #  检查colorImg是否为None（即图像是否为空）
-        if colorImg is not None:
-            # 从四通道的RGBA转换为三通道的RGB
-            rgb_img = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
-            cv2.imwrite(file_name+f"origin_1.png", rgb_img)
-        print("图像保存成功")
+        # self.kinect.save_point_cloud("data\\points\\7-15\\cloud_data\\3rd\\")
+        # print("点云保存结束")
+        # file_name = "data\\points\\7-15\\origin_img\\3rd\\"
+        file_name = self.run_record_path +"origin"
+        os.makedirs(os.path.join(file_name), exist_ok=True)
+        for i in range(30):
+            colorImg,depthImg = self.kinect.get_frames()
+            #  检查colorImg是否为None（即图像是否为空）
+            if colorImg is not None:
+                # 从四通道的RGBA转换为三通道的BGR
+                rgb_img = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
+                # print(file_name)
+                cv2.imwrite(file_name+f"\\origin_{i}.png", rgb_img)
+        print("图像收集成功")
         sys.exit()
+        # cur = 0
+        # path="data\\points\\7-15\\rec\\"
+        # while(1):
+        #     colorImg,depthImg = self.kinect.get_frames()
+        #     if colorImg is not None:
+        #         cv2.imwrite(path+f"{cur}.jpg",colorImg)
+        #         cur = cur+1
+        #         time.sleep(0.04)
+
 
 
 if __name__ == "__main__":

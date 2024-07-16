@@ -2,10 +2,12 @@ import numpy as np
 import os
 import sys
 import cv2 as cv
+# 当前文件运行，也可以用python -m tools.calibration 这样运行，将当前文件作为包
 # from getKinect import KinectCapture
-# import calbration_tools
-from tools.getKinect import KinectCapture
-from tools import calbration_tools
+# from calbration_tools import *
+# 从mian方法中调用
+from .getKinect import KinectCapture
+from .calbration_tools import *
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -89,17 +91,17 @@ def kinect2robot_desk(robot_pts, rotate_mat, trans, savePath):
 
 def record_chess_order(readPath):
     # readPath = "data\\points\\7-1\\third\\"
-    chess_camera_pts, chess_color_pts_xy, chess_img, chess_corners ,copy_img= calbration_tools.read_data(
+    chess_camera_pts, chess_color_pts_xy, chess_img, chess_corners ,copy_img= read_data(
         readPath, "result")
     # 看了下这个顺序和利用kinect找到的相机角点顺序是一致的。
     # 目前的问题是利用该2d点找到的3d kinect_data数据顺序和机械臂好像不一样？明天再看看。
     #这里将棋盘格平面切割出来，chess_3d是整个棋盘格 3d信息，chess_2d包含其像素点的位置信息
     # 现在添加方法，在找棋盘格位置时，将顺序同步标记并保存，然后根据顺序完成机械臂点的对应标记点记录 
-    chess_3d, chess_2d = calbration_tools.select_chessboard_pointcloud(img=chess_img, cameraPts=chess_camera_pts,
+    chess_3d, chess_2d = select_chessboard_pointcloud(img=chess_img, cameraPts=chess_camera_pts,
                                                         color_pts_xy=chess_color_pts_xy,
                                                         corners=chess_corners)
     
-    kinect_chess_data = calbration_tools.homography_trans(chess_3d, chess_2d, chess_corners)
+    kinect_chess_data = homography_trans(chess_3d, chess_2d, chess_corners)
     # 这里通过一系列的方法先拟合棋盘格平面点云，划区域，找点，等等来确定25个点对应的位置信息，和本地直接通过kdtree找到的点云数据有一定的出入
     pts_kinect_chess = kinect_chess_data[:, :3]
 
@@ -228,7 +230,7 @@ def save_trans_martix(filePath):
     # # 高师兄计算转换矩阵的方法
     # robot_chess = np.loadtxt(readPath + "\\robot_Pts.txt")
     pts_chess_robot = robot_points[:, :3]
-    rotate_mat, trans, FRE = calbration_tools.caculate_conversion_matrix(camera_points, pts_chess_robot)
+    rotate_mat, trans, FRE = caculate_conversion_matrix(camera_points, pts_chess_robot)
     print("R = ", np.array(rotate_mat))
     print("T= ", np.array(trans))
     print("FRE", FRE)
