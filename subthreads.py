@@ -18,7 +18,7 @@ import numpy as np
 from tools.calibration import cal_trans_data
 
 # roi区域--统一在这里进行更改--也可以用信号和槽的方式进行传递？？？
-x,y,w,h = 1113,477,154,41 #--短粗线--
+x,y,w,h = 1020,451,150,40 #--短粗线--
 # x,y,w,h = 1062,512,150,48 # s曲线部分c--
 # x,y,w,h = 1064,504,330,50 # s曲线整个--
 # x,y,w,h = 1263,380,202,80#兔子
@@ -175,7 +175,7 @@ class DevMsge(ctypes.Structure):
                 ("y", ctypes.c_float),
                 ("z", ctypes.c_float)]
 
-# 更新显示区域子线程-包括缝合到顶点规划显示
+# 更新显示区域子线程-包括缝合到顶点规划显示  相机视觉线程
 class show_roi_thread(QThread):
     show_status_signal = pyqtSignal(int)
 
@@ -187,7 +187,7 @@ class show_roi_thread(QThread):
         self.show_roi_status = True
         self.show_status = 0 #默认从初始位姿运动之后是向下运动
 
-        self.model = CustomCNN((3, 40, 180))
+        self.model = CustomCNN((3, 40, 180))# 改成状态预测图像的大小，the size of用来训练状态判断的图片
         self.model.load_state_dict(torch.load('pth\\status\\status_cnn.pth'))# 加载预训练模型
         self.model.eval()
 
@@ -214,7 +214,6 @@ class show_roi_thread(QThread):
                     q_image = QImage(scale_img.data, width, height,bytes_per_line, QImage.Format_BGR888)
                     self.main_thread.label_img.setPixmap(QPixmap.fromImage(q_image))# 在 QLabel 中显示图像，并使用填充方式
                     self.main_thread.label_img.setScaledContents(True)
-
                 elif self.show_status == 1 and consecutive_ones_count < 3:
                     # print(f"current consecutive_ones_count: {consecutive_ones_count}")
                     # roi_img = cv2.imread("data\\data\\status_train\\4-26-img\\collect_2\\169_roi_1.jpg")
@@ -269,7 +268,6 @@ class show_roi_thread(QThread):
                     #     self.count = 0
                     #     self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)#停止机械臂运动
                     #     self.change_show_status(1)
-                
                 elif self.show_status == 3:
                     # 暂时用于路径点规划--标定等函数
                     filePath = self.main_thread.run_record_path#数据记录路径统一在mian线程中定义
@@ -360,44 +358,44 @@ class collect_Kinect_Pressure(QThread):
         record_count = 0
         count_color_null = 0
 
-        # 只记录抬升阶段的压力数据
-        # with open(self.main_thread.record_info+'\\pressure_all.txt', 'a', newline='') as txtfile:
-        #     while not self.stop_requested:
-        #         # 发送指令并接收数据
-        #         send_data = binascii.unhexlify("010300000001840A")
-        #         self.main_thread.serial.write(send_data)
-        #         time.sleep(0.01)
-        #         # 解析接收到的数据
-        #         read_data = self.main_thread.serial.read_all()
-        #         rcv_buf = list(read_data)
-        #         rcv_len = len(rcv_buf)
-        #         success ,rcvData= WRIST_FrmPrase(rcv_buf, rcv_len)
-        #         if rcvData:  # 检查rcvData是否为空
-        #             txtfile.write(str(rcvData[0])+'\n')
-        #             txtfile.flush()  # 强制将缓冲区的数据写入文件
-
-        while not self.stop_requested:
-            # 修改保存文件夹，使其不需要新建文件夹就能保存数据，将一次抬起动作保存到一个文件夹下
-            filename = main_filename+"\\"+str(record_count)
-            # 先写收集一次的方法，然后在拓展成循环
-            color,depth = self.main_thread.kinect.get_frames()
-            # 这里存在一个bug，就是color帧有时候获取不稳定，造成数据收集出现问题
-            if color is not None:
-                # 启动压力传感器线程
-                pressure_thread = PressureThread(self.main_thread,filename)
-                pressure_thread.start()
-                # 保存图像
-                colorImg = cv2.cvtColor(color, cv2.COLOR_BGRA2BGR)
-                # roi区域
-                roi_img = colorImg[y:y+h, x:x+w].copy()
-                cv2.imwrite(filename + "_roiColor.jpg",roi_img)
+        # 只记录抬升阶段的压力数据=--测试
+        with open(self.main_thread.record_info+'\\pressure_all.txt', 'a', newline='') as txtfile:
+            while not self.stop_requested:
+                # 发送指令并接收数据
+                send_data = binascii.unhexlify("010300000001840A")
+                self.main_thread.serial.write(send_data)
                 time.sleep(0.01)
-                record_count += 1
-                # 结束压力传感器线程
-                pressure_thread.stop()
-            else:
-                # print("cout color is None: ",count_color_null)
-                count_color_null += 1
+                # 解析接收到的数据
+                read_data = self.main_thread.serial.read_all()
+                rcv_buf = list(read_data)
+                rcv_len = len(rcv_buf)
+                success ,rcvData= WRIST_FrmPrase(rcv_buf, rcv_len)
+                if rcvData:  # 检查rcvData是否为空
+                    txtfile.write(str(rcvData[0])+'\n')
+                    txtfile.flush()  # 强制将缓冲区的数据写入文件
+        #正常使用-- 
+        # while not self.stop_requested:
+        #     # 修改保存文件夹，使其不需要新建文件夹就能保存数据，将一次抬起动作保存到一个文件夹下
+        #     filename = main_filename+"\\"+str(record_count)
+        #     # 先写收集一次的方法，然后在拓展成循环
+        #     color,depth = self.main_thread.kinect.get_frames()
+        #     # 这里存在一个bug，就是color帧有时候获取不稳定，造成数据收集出现问题
+        #     if color is not None:
+        #         # 启动压力传感器线程
+        #         pressure_thread = PressureThread(self.main_thread,filename)
+        #         pressure_thread.start()
+        #         # 保存图像
+        #         colorImg = cv2.cvtColor(color, cv2.COLOR_BGRA2BGR)
+        #         # roi区域
+        #         roi_img = colorImg[y:y+h, x:x+w].copy()
+        #         cv2.imwrite(filename + "_roiColor.jpg",roi_img)
+        #         time.sleep(0.01)
+        #         record_count += 1
+        #         # 结束压力传感器线程
+        #         pressure_thread.stop()
+        #     else:
+        #         # print("cout color is None: ",count_color_null)
+        #         count_color_null += 1
 
     def stop(self):
         self.stop_requested = True
@@ -441,7 +439,7 @@ class WorkThread(QThread):
                 # 开始缝合
                 motor_signal = motorRun()
                 if motor_signal == "motor_run_successful":
-                    print("缝合完成，开始抬升")# 圆弧行运动模块--是标准园还是曲线部分？看具体运动效果
+                    print("缝合完成，开始抬升")
                     temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
                     temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
                     temp_point.px -= 0.005
@@ -463,9 +461,9 @@ class WorkThread(QThread):
                 point_index+=1
             self.end_time = time.time()
             txtfile.write(str("50")+"  "+str(self.end_time-self.start_time)+str("")+'\n')
-            txtfile.flush()
+            txtfile.flush()  # 为了将缓冲区中的内容强制写入
         print("the spend time is :",self.end_time-self.start_time)
-        self.show_kinect_thread.stop()#缝合完成默认停止？
+        self.show_kinect_thread.stop()#缝合完成默认停止
         self.stop()
 
 
@@ -474,6 +472,6 @@ class WorkThread(QThread):
         if  hasattr(self.main_thread, 'timer_pos'):
             print("结束实时位姿展示线程")
             # 定时器的启动和暂停不能跨线程，所以该命令报错
-            self.main_thread.timer_pos.stop()
+            # self.main_thread.timer_pos.stop()
         self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)
         sys.exit()

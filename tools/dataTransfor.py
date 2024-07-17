@@ -80,7 +80,7 @@ def modify(filepath, mid):
 
 # 新增函数将所有图像输出到一个文件夹中，方便labelme打标签以及后续训练
 # 用于训练roi的unet模型
-def data2Unet(parent_folder):
+def data2labelme(parent_folder):
     # 创建输出文件夹
     output_folder = os.path.join(parent_folder, "origin")
     os.makedirs(output_folder, exist_ok=True)
@@ -116,8 +116,8 @@ def data2Unet(parent_folder):
 
 
 if __name__ == "__main__":
-    #for unet 
-    data2Unet("data\\points\\7-1\\6th\\1_copy")
+    #for unet 为了打标签的图像集合
+    data2labelme("data\\points\\7-1\\6th\\1_copy")
     # Example usage:
     # 未缝合好标签记录为0，缝合好标签记录为1
     # modify("data\\data\\status_train\\4-26-img\\collect_7", 45)

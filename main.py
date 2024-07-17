@@ -67,9 +67,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # self.img_roi = [1064,504,330,50] #roi区域,S曲线整个
         # self.img_roi = [1062,512,150,48] #roi区域,s曲线部分c
         # self.img_roi = [1263,380,202,80]#兔子
-        self.img_roi = [1113,477,154,41] #roi区域,短粗线部分
-        self.run_record_path = "data\\points\\7-15\\2nd\\"
-
+        self.img_roi = [1020,451,150,40] #roi区域,短粗线部分
+        self.run_record_path = "data\\points\\7-15\\3rd\\"
 
     #  高点记录按钮--记录当前伤口信息，伤口2d信息，三维点云信息，压力传感器信息，提起来的高度差
     def on_kinect_pressure(self):
@@ -99,7 +98,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         roi_img = colorImg[y:y+h, x:x+w].copy()
         cv2.imwrite(filename + f"\\{self.record_info_count}_High_roi.jpg",roi_img)
         print("当前位置所有信息成功记录")
-
 
     # 电机测试&&示教模式记录接口  缝合下针按钮
     def on_testSuture(self):
@@ -210,7 +208,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print("系统初始化成功，可以点击运行按钮")
         # 系统所有数据记录路径，将在子线程中路径的定义现在统一交由mian线程控制--集成
         
- 
     #开始运动按钮 
     def on_runRM65(self):
         if(not hasattr(self, 'rm65')):
@@ -233,7 +230,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.work_thread = WorkThread(self,points)
         self.work_thread.start()
-
 
     #更新机械臂位姿信息 
     def showRM65Position(self):
@@ -293,9 +289,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print("success into 示教--修改为收集图像和压力传感器数据入口")
         self.teach_flag = True
         # 如果没有rm65对象，就创建一个
-        if(not hasattr(self, 'rm65')):
-            self.rm65 = RobotConnection("192.168.1.19", 8080)
-            self.rm65.connect()
+        # if(not hasattr(self, 'rm65')):
+        #     self.rm65 = RobotConnection("192.168.1.19", 8080)
+        #     self.rm65.connect()
         # 如果没有kinect对象，就创建一个 
         if(not hasattr(self, 'kinect')):
             self.kinect = KinectCapture()
@@ -305,7 +301,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 如果没有压力传感器对象，就创建一个
         if(not hasattr(self,"serial")):
             self.serial=serial.Serial('COM4', 115200)
-        self.record_info = "data\\points\\7-1\\6th\\1_copy\\"
+        file_name = self.run_record_path+"teach"
+        os.makedirs(os.path.join(file_name), exist_ok=True)
+        self.record_info = file_name
         self.record_info_count = 0
         print("现在可以开始示教了...")
         
@@ -322,6 +320,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     
     # 示教前图像信息采集
     def on_imgCollect(self):
+        # # 测试压力传感器是否能用
+        # self.img_thread = collect_Kinect_Pressure(self)
+        # self.img_thread.start()
+        # time.sleep(3)
+        # exit()
         cur_img_num = 0
         print("修改为收集图像以及确定roi区域")
         if not hasattr(self,'kinect'):
