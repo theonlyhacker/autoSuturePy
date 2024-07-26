@@ -69,7 +69,7 @@ class predictImg():
         max_component = (labels == max_label).astype(np.uint8)
 
         # 获取最大连通域的像素点个数
-        pixel_count = np.sum(max_component)
+        pixel_count = np.sum(max_component)   
 
         # 创建新图像，将最大连通域设置为白色，其他部分设置为黑色
         result_image = np.ones_like(predicted_image) * 255

@@ -16,10 +16,15 @@ import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
 from tools.calibration import cal_trans_data
+import save_load_duijiaodian
 
 # roi区域--统一在这里进行更改--也可以用信号和槽的方式进行传递？？？
-x,y,w,h = 1020,451,150,40 #--短粗线--
-# x,y,w,h = 1062,512,150,48 # s曲线部分c--
+# x,y,w,h = 1020,451,150,40 #--短粗线--
+t = time.strftime('%m-%d', time.localtime())
+file_index = "first"
+run_record_path = "data\\points\\"+t+"\\"+file_index+"\\"
+if os.path.exists(run_record_path+"origin\\origin_0_circle.txt"):
+    x,y,w,h = save_load_duijiaodian.load_points_from_file(run_record_path+"origin\\origin_0_circle.txt") # s曲线部分c--
 # x,y,w,h = 1064,504,330,50 # s曲线整个--
 # x,y,w,h = 1263,380,202,80#兔子
 # Lookup table for CRC calculation
@@ -286,10 +291,13 @@ class show_roi_thread(QThread):
                     wound_point_3d = cal_trans_data(edgePoints)#计算得到这些点在rm65基坐标系下的表达式
                     func_data=[]
                     for i in wound_point_3d:
-                        func_data.append([i[0],i[1],0.027])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
-                    plan_wound_data = self.kinect.getTurePointsRm65(func_data,10)
+                        # func_data.append([i[0],i[1],0.028])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
+                        func_data.append([i[0],i[1],0.028])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
+                    plan_wound_data = self.kinect.getTurePointsRm65(func_data,5)
+                    plan_data_update = self.kinect.offSet_planData(plan_wound_data)
                     np.savetxt(filePath+"wound_data_rm65.txt",func_data, fmt='%.6f')
                     np.savetxt(filePath+"plan_data.txt",plan_wound_data, fmt='%.6f')
+                    np.savetxt(filePath+"plan_data_update.txt",plan_data_update, fmt='%.6f')
                     cv2.imwrite(filePath+'wound_predict.png', final_canvas)# 保存最终图像
                     self.change_show_status(1)
 

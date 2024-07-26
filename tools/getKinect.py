@@ -16,9 +16,10 @@ import pandas as pd
 
 depthSize = 512*424
 
+
 class KinectCapture:
     def __init__(self):
-        # 初始化 Kinect
+        # 初始化 Ki  nect
         self.kinect = PyKinectRuntime.PyKinectRuntime(PyKinectV2.FrameSourceTypes_Color | PyKinectV2.FrameSourceTypes_Depth)
         # 等待3秒钟，直到相机准备好
         time.sleep(3)
@@ -47,7 +48,7 @@ class KinectCapture:
             return color_image, depth_image
         
         return None, None
-
+    # 将深度图像转换为相机中的点
     def get_camera_space_points(self, depth_frame):
         # 创建一个空的_CameraSpacePoint数组来存储结果
         camera_space_points = (PyKinectV2._CameraSpacePoint * depth_frame.size)()
@@ -60,7 +61,7 @@ class KinectCapture:
         # for point in camera_space_points:
         #     print("X: {}, Y: {}, Z: {}".format(point.x, point.y, point.z))
         return camera_space_points
-    
+    # 将深度帧映射到彩色图像的坐标空间
     def get_color_space_points(self, depth_frame):
         # 创建一个空的_ColorSpacePoint数组来存储结果
         color_space_points = (PyKinectV2._ColorSpacePoint * depth_frame.size)()
@@ -432,6 +433,14 @@ class KinectCapture:
         poses = np.array(poses)
         # kinect测不准，导致需要进行补偿以及固定某些数值
         poses = np.insert(poses, 2, z[0], axis=1)# 在每行中添加固定的z值
+        for pose in poses:
+            formatted_pose = ', '.join(f"{coord:.6f}" for coord in pose)
+            print(formatted_pose)
+        poses = np.around(poses, decimals=6)  # 将数组中的数据四舍五入到六位小数
+        return poses
+
+    def offSet_planData(self,poses):
+        # poses = np.insert(poses, 2, z[0], axis=1)# 在每行中添加固定的z值
         poses = poses[np.argsort(poses[:, 0])[::-1]]  # 将结果按x坐标降序排列
         # 针对于偏移量，固定值在c形状下不好用，现在采用线性变换
         # poses[:, 1] -= 0.025 # 固定值方法 将y值统一减去0.02
@@ -439,17 +448,13 @@ class KinectCapture:
         initial_offset = 0.02# 初始偏移值
         total_offset = 0.008# 总偏移量
         individual_offset = total_offset / len(poses)# 计算每个点的偏移量
+        # 改为直线后将偏移量常数化
+        # individual_offset = 0
         # 调整后的 y 值
         for i in range(len(poses)):
             y_offset = initial_offset + i * individual_offset
             poses[i, 1] -= y_offset
-        
-        for pose in poses:
-            formatted_pose = ', '.join(f"{coord:.6f}" for coord in pose)
-            print(formatted_pose)
-        poses = np.around(poses, decimals=6)  # 将数组中的数据四舍五入到六位小数
         return poses
-
 
 # 渲染伤口带规划点和实际点云信息，查看其分布
 def plotPy_CLoss(data1,data2):
@@ -513,12 +518,12 @@ def show_dis(file_path):
 if __name__ == "__main__":
     kinect = KinectCapture()
     # 文件保存位置
-    file_path = "data\\points\\7-11\\4th\\3rd\\"
+    file_path = "data\\points\\7-19\\3rd\\"
     data = np.loadtxt(file_path + 'wound_data_rm65.txt')#特征点数据，kinect相机检索到的3d点集合
-    wound_points_name = "plan_data_1.txt"
-    plan_points = kinect.getTurePointsRm65(data,num_segments=10)##还存在问题，待修改
-    np.savetxt(file_path+wound_points_name,plan_points,fmt='%.6f')
-    exit()
+    wound_points_name = "plan_data.txt"
+    # plan_points = kinect.getTurePointsRm65(data,num_segments=10)##还存在问题，待修改
+    # np.savetxt(file_path+wound_points_name,plan_points,fmt='%.6f')
+    # exit()
     # show_dis(file_path+wound_points_name)
     # exit()
     plan_points = np.loadtxt(file_path + wound_points_name)

@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
-def load_robot_data(filePath):
+def load_robot_data(filePath):  # 传入文件路径后将文件加载并打印
     # f = open(filePath, 'r')
     # data = f.readlines()
     # f.close()
@@ -43,7 +43,7 @@ def desk_reorder(x):
     def my_sort(x): return sorted(x, key=lambda i: i[0], reverse=True)
 
     if x.shape[-1] == 2:
-        tmp = sorted(x, key=lambda i: i[1])
+        tmp = sorted(x, key=lambda i  : i[1])  
         tmp = np.asarray(tmp)
 
         res = np.concatenate([my_sort(tmp[0:2]), my_sort(tmp[5:7]),
@@ -79,11 +79,12 @@ def box_reorder(x):
                               ], axis=0)
     return res
 
+# 将传入的第一个参数points进行平移矩阵和旋转矩阵的转换，保存到savepath里
 def kinect2robot_box(robot_pts, rotate_mat, trans, savePath):
     transformed_pts = np.matmul((robot_pts-trans.reshape([1, 3])), np.linalg.inv(rotate_mat.T))
     np.savetxt(savePath + "\\box_transformed_pts.txt", transformed_pts)
     return transformed_pts
-
+  
 def kinect2robot_desk(robot_pts, rotate_mat, trans, savePath):
     transformed_pts = np.matmul((robot_pts-trans.reshape([1, 3])), np.linalg.inv(rotate_mat.T))
     np.savetxt(savePath + "/desk_transformed_pts.txt", transformed_pts)
@@ -91,21 +92,26 @@ def kinect2robot_desk(robot_pts, rotate_mat, trans, savePath):
 
 def record_chess_order(readPath):
     # readPath = "data\\points\\7-1\\third\\"
-    chess_camera_pts, chess_color_pts_xy, chess_img, chess_corners ,copy_img= read_data(
-        readPath, "result")
+    chess_camera_pts,chess_color_pts_xy, chess_img, chess_corners ,copy_img= read_data(readPath, "result")
+    """
+    10000*3,10000*2,相机拍摄的原图像，25*2（经25*1*2squeeze得来），标注corners后的图像
+    """
     # 看了下这个顺序和利用kinect找到的相机角点顺序是一致的。
-    # 目前的问题是利用该2d点找到的3d kinect_data数据顺序和机械臂好像不一样？明天再看看。
     #这里将棋盘格平面切割出来，chess_3d是整个棋盘格 3d信息，chess_2d包含其像素点的位置信息
     # 现在添加方法，在找棋盘格位置时，将顺序同步标记并保存，然后根据顺序完成机械臂点的对应标记点记录 
     chess_3d, chess_2d = select_chessboard_pointcloud(img=chess_img, cameraPts=chess_camera_pts,
                                                         color_pts_xy=chess_color_pts_xy,
                                                         corners=chess_corners)
-    
+    # 在方框内找的黑色像素点，1000*3，1000*2
+    print(len(chess_3d))
+    print(len(chess_2d))
     kinect_chess_data = homography_trans(chess_3d, chess_2d, chess_corners)
     # 这里通过一系列的方法先拟合棋盘格平面点云，划区域，找点，等等来确定25个点对应的位置信息，和本地直接通过kdtree找到的点云数据有一定的出入
     pts_kinect_chess = kinect_chess_data[:, :3]
 
     np.savetxt(readPath + "\\kinect_chess_3d.txt", pts_kinect_chess)
+    if not os.path.exists(os.path.join(readPath,'robot_Pts.txt')):
+        np.savetxt(readPath + "robot_Pts.txt",[])
     cv.imwrite(readPath+"\\show_corners_order.png",copy_img)
 
 def plot_3d_from_file(filename):
@@ -222,6 +228,7 @@ def save_trans_martix(filePath):
     # filePath = "data\\points\\7-1\\third\\"
     camera_points = read_points(filePath+"kinect_chess_3d.txt")
     robot_points = read_points(filePath+"robot_Pts.txt")
+    robot_points /=1000
     # 计算转换矩阵
     transformation_matrix = hand_eye_calibration(camera_points, robot_points)
     np.savetxt(filePath+"trans_new.txt",transformation_matrix)
@@ -255,7 +262,8 @@ def cal_trans_data(edge_point):
     返回:
     numpy.ndarray: 机械臂基座坐标系中的3D点,形状为 (3,)。
     """
-    readPath= "data\\points\\7-1\\5th\\1st\\"
+    readPath= "data\\points\\7-24\\1st\\"
+    # readPath= "data\\points\\7-24\\1st\\"
     trans_martix = np.loadtxt(readPath+"trans_new.txt")
     kinect = KinectCapture()
     # edge_point = [[1262,362],[988,497]]
@@ -264,7 +272,7 @@ def cal_trans_data(edge_point):
     for i in data_in_kinect:
         data_in_rm = transform_point(i,trans_martix)
         # print(f"data in kinct:{i}")
-        # print(f"data in rm65:{data_in_rm}")
+        print(f"data in rm65:{data_in_rm}")
         result.append(data_in_rm)
     print(f"the size of pointd in rm65: {len(result)}")
     return result
@@ -272,20 +280,21 @@ def cal_trans_data(edge_point):
 
 if __name__ == '__main__':
     print("---------------------")
-    readPath = "data\\points\\7-8\\6th\\"
-    # 1 # 保存点云信息
+    readPath = "data\\points\\7-24\\1st\\"
+    1 # 保存点云信息
+    # os.makedirs(os.path.join(readPath), exist_ok=True)
     # kinect = KinectCapture()
     # kinect.save_point_cloud(filename=readPath)
     # sys.exit()
-    # 2
+    2
     # record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
     # exit()
-    # 记录机械臂在这些点的位置信息得到robot_Pts.txt文档，记录顺序与角点顺序一致
-    # 3
+    # # 记录机械臂在这些点的位置信息得到robot_Pts.txt文档，记录顺序与角点顺序一致
+    # # 3
     # save_trans_martix(readPath) #然后运行该方法得到其转换矩阵
     # exit()
     # 4--测试
-    edge_point = [[1100,450],[1125,543],[1395,373]]
+    edge_point = [[1078,412]]
     cal_trans_data(edge_point)# 传入像素数组，进行测试or计算--记得修改读取权重文件的路径
     exit()
     # # 示例调用

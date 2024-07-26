@@ -10,7 +10,6 @@ from torch.utils.data import random_split
 from model.model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
 import os
 
-
 #原来的epoch是40 batch_size=1
 def train_net(net, device, train_data_path,test_data_path, epochs=20, batch_size=8, lr=0.0001):
     # 加载训练集

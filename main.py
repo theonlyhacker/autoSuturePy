@@ -28,6 +28,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 from subthreads import *
 
+# import save_load_duijiaodian
    
 # kinect 相机参数
 rgbWidth,rgbHeight = 1920,1080
@@ -51,11 +52,29 @@ class DevMsge(ctypes.Structure):
                 ("x", ctypes.c_float),
                 ("y", ctypes.c_float),
                 ("z", ctypes.c_float)]
-
-
+# #保存两个对角点到文件
+# def save_points_to_file(points, file_path):
+#           with open(file_path, 'w') as f:
+#               for point in points:
+#                   f.write(f"{point[0]},{point[1]}\n")
+# #读取对角点文件到代码中
+# load_points = []
+# def load_points_from_file(file_path):
+#     with open(file_path, 'r') as f:
+#          lines = f.readlines()
+#          for line in lines :
+#              a = line.split(",")
+#              load_points.append(a[0])
+#              load_points.append(a[1])
+#     width = load_points[2]-load_points[0]
+#     height = load_points[3]-load_points[1]
+#     x,y = load_points[0],load_points[1]
+#     return x,y,width,height
 # 全局变量，用于保存图像计数 ---仅用作图像采集时的权宜之计
 global_count_colorImg = 1
 glbal_start_time = 0
+# 初始化全局变量以保存 x, y 坐标
+clicked_points = []
 class MainWindow(QMainWindow, Ui_MainWindow):
     # 初始化
     def __init__(self):
@@ -64,11 +83,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.work_thread = None
         self.pressure_thread = None
         self.showWoundStatus = False
+        t = time.strftime('%m-%d', time.localtime())
+        file_index = "first"
+        self.run_record_path = "data\\points\\"+t+"\\"+file_index+"\\"
         # self.img_roi = [1064,504,330,50] #roi区域,S曲线整个
-        # self.img_roi = [1062,512,150,48] #roi区域,s曲线部分c
+        # self.img_roi = [1030,648,185,46] #roi区域,s曲线部分c
+        if os.path.exists(self.run_record_path+"origin\\origin_0_circle.txt"):
+            self.img_roi = save_load_duijiaodian.load_points_from_file(self.run_record_path+"origin\\origin_0_circle.txt")
+    
         # self.img_roi = [1263,380,202,80]#兔子
-        self.img_roi = [1020,451,150,40] #roi区域,短粗线部分
-        self.run_record_path = "data\\points\\7-15\\3rd\\"
+        # self.img_roi = [1020,451,150,40] #roi区域,短粗线部分
+        
+        
+        # self.run_record_path = "data\\points\\7-19\\4th\\"
 
     #  高点记录按钮--记录当前伤口信息，伤口2d信息，三维点云信息，压力传感器信息，提起来的高度差
     def on_kinect_pressure(self):
@@ -210,14 +237,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
     #开始运动按钮 
     def on_runRM65(self):
+        if(not hasattr(self, 'kinect')):
+            self.kinect = KinectCapture()
+            if self.kinect.connect() == None:
+                print("kinect相机初始化失败")
+            print("kinect相机初始化成功")
         if(not hasattr(self, 'rm65')):
             print("开始run rm65线程")
-            rm65 = RobotConnection("192.168.1.19", 8080)
-            rm65.connect()
+            self.rm65 = RobotConnection("192.168.1.19", 8080)
+            self.rm65.connect()
         # 启动机械臂运动线程
         points = []
         # self.run_record_path = "data\\points\\7-11\\4th\\5th\\"
-        with open(self.run_record_path+'plan_data.txt', 'r') as file:
+        with open(self.run_record_path+'plan_data_update.txt', 'r') as file:
             lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
@@ -317,7 +349,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.record_info = ""
         self.record_info_count = 0
         print('资源已释放，示教结束')
-    
+
     # 示教前图像信息采集
     def on_imgCollect(self):
         # # 测试压力传感器是否能用
@@ -335,7 +367,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # file_name = "data\\points\\7-15\\origin_img\\3rd\\"
         file_name = self.run_record_path +"origin"
         os.makedirs(os.path.join(file_name), exist_ok=True)
-        for i in range(30):
+        for i in range(5):
             colorImg,depthImg = self.kinect.get_frames()
             #  检查colorImg是否为None（即图像是否为空）
             if colorImg is not None:
@@ -344,6 +376,32 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # print(file_name)
                 cv2.imwrite(file_name+f"\\origin_{i}.png", rgb_img)
         print("图像收集成功")
+        # 显示图像并绑定鼠标事件
+        # 定义鼠标事件处理函数
+        image=cv2.imread(file_name+"\\origin_0.png")
+        def click_event(event, x, y, flags, param):
+            if event == cv2.EVENT_LBUTTONDOWN:
+                pixel_value = image[y, x]
+                print(f"Pixel at ({x}, {y}): {pixel_value}")
+                # 显示点击的像素点
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                # cv2.putText(image, str([x,y]), (x, y), font, 0.5, (0, 255, 0), 2)
+                cv2.circle(image, (x, y), 5, (0, 255, 0), -1)  # 绘制圆点标记点击位置
+                cv2.imshow('image', image)
+                clicked_points.append((x,y))
+            if len(clicked_points)==2:
+                cv2.rectangle(image, clicked_points[0], clicked_points[1], (0, 0, 255), 2)  # 绘制矩形框
+                cv2.imwrite(file_name+f"\\origin_4.png", image)
+            cv2.imshow('image', image)
+        cv2.imshow('image', image)
+        cv2.setMouseCallback('image', click_event)
+        cv2.waitKey(0)
+        a,b = clicked_points[0]
+        c,d = clicked_points[1]
+        image2 = image[b:d,a:c]
+        cv2.imwrite(file_name+f"\\origin_3.png", image2)
+        save_load_duijiaodian.save_points_to_file(clicked_points,file_name+f"\\origin_0_circle.txt")
+        cv2.destroyAllWindows()
         sys.exit()
         # cur = 0
         # path="data\\points\\7-15\\rec\\"
@@ -361,3 +419,40 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
+
+# import cv2
+
+# # 读取图像
+# image = cv2.imread('0.png')
+
+# # 初始化第一个点
+# first_point = None
+
+
+# # 定义鼠标事件处理函数
+# def click_event(event, x, y, flags, param):
+#     global first_point
+#     if event == cv2.EVENT_LBUTTONDOWN:
+#         cv2.circle(image, (x, y), 5, (0, 255, 0), -1)  # 绘制圆点标记点击位置
+#         cv2.imshow('image', image)
+
+#         # 记录第一个点
+#         if first_point is None:
+#             first_point = (x, y)
+#         else:
+#             # 第二个点已点击，绘制矩形框
+#             second_point = (x, y)
+#             cv2.rectangle(image, first_point, second_point, (0, 0, 255), 2)  # 绘制矩形框
+#             cv2.imshow('image', image)
+#             first_point = None  # 重置第一个点
+
+
+# # 显示图像并绑定鼠标事件
+# cv2.imshow('image', image)
+# cv2.setMouseCallback('image', click_event)
+
+# while True:
+#     if cv2.waitKey(1) & 0xFF == 27:  # 按 ESC 键退出
+#         break
+
+# cv2.destroyAllWindows()

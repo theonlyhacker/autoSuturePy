@@ -27,7 +27,7 @@ def find_chessboard(img_path, size):
         #这里将两次找到的点位位置进行求和平均，而不是直接用concatenate()进行合并计算？
         # corners = np.concatenate([corners_first, corners_sec], 0)
         merged_martix = np.add(corners_first,corners_sec)
-        corners = np.divide(merged_martix,2)
+        corners = np.divide(merged_martix,2)  
 
         corners = np.squeeze(corners)
         return corners
@@ -35,7 +35,7 @@ def find_chessboard(img_path, size):
         print('cannot find chessboard points')
         return -1
 
-
+# 得到25个点画上绿圈儿标上数字
 def find_and_display_chessboard_corners(img_path, size):
     # Ensure the image path exists
     assert os.path.exists(img_path), "Image path does not exist."
@@ -89,6 +89,9 @@ def get_rms(array):
 
 
 def get_plane_info(point, vector):
+    """
+    将向量标准化后作为A，B，C返回，并返回D使得平面平移，让中心点在平面上
+    """ 
     vector /= np.linalg.norm(vector)  # 标准化
     A, B, C = vector[0], vector[1], vector[2]
 
@@ -200,27 +203,29 @@ def select_chessboard_pointcloud(img, cameraPts, color_pts_xy, corners):
 
 def homography_trans(filtered_pts_3d, filtered_pts_2d, filtered_corners):
     # save_point_cloud_to_pcd(filtered_pts_3d, "origin_point_cloud.pcd")
+    #得到计算特征矩阵后的1000*3，貌似是平移到有高度的平面上
     adjusted_pts = plane_fitting(filtered_pts_3d)
 
     # save_point_cloud_to_pcd(adjusted_pts, "adjusted_point_cloud.pcd")
 
+#axis=0竖着数，axis=1横着数
     eigen_vals, eigen_mat = pca(adjusted_pts)
     min_pos = eigen_vals.argmin()
     # 数据在特征向量空间中的投影结果 
     pca_res = np.matmul(adjusted_pts, eigen_mat)
     # 这行代码将pca_res中第一行、第min_pos列的元素赋值给变量sta。
     sta = pca_res[0][min_pos]
-    # 这行代码使用np.delete函数删除pca_res中的第min_pos列，结果存储在pca_res中
+    # 这行代码使用np.delete函数删除pca_res中的第min_pos列，结果存储在pca_res中,实现降维，1000*3变1000*2
     pca_res = np.delete(pca_res, [min_pos], axis=1)
     # 这行代码调用了OpenCV的findHomography函数，根据filtered_pts_2d和pca_res计算出一个单应性矩阵homography_mat，用于将二维点坐标映射到特征向量空间。 
     homography_mat, _ = cv.findHomography(filtered_pts_2d, pca_res)
     # 这行代码使用perspectiveTransform函数对filtered_pts_2d进行透视变换，使用homography_mat作为变换矩阵，得到变换后的点坐标数组warped_all。
-    warped_all = cv.perspectiveTransform(np.expand_dims(filtered_pts_2d, 0), homography_mat)[0]
+    warped_all = cv.perspectiveTransform(np.expand_dims(filtered_pts_2d, axis=0), homography_mat)[0]
     error = (warped_all - pca_res) * 1e3
     print('warped_all rms:', get_rms(error))
     # 下两行代码对filtered_corners进行透视变换，使用homography_mat作为变换矩阵，得到变换后的角点坐标数组warped_res
     print(filtered_corners)
-    warped_res = cv.perspectiveTransform(np.expand_dims(filtered_corners, 0), homography_mat)
+    warped_res = cv.perspectiveTransform(np.expand_dims(filtered_corners, axis=0), homography_mat)
     warped_res = np.squeeze(warped_res)
     print(warped_res)
     # 这行代码在warped_res的第min_pos列插入值为sta的元素，使其与原始投影结果的维度保持一致。
@@ -257,6 +262,10 @@ def caculate_conversion_matrix(kinect_chess_data, pts_chess_robot):
 
 
 def read_data(filePath, fileNmae):
+    """
+    将文件路径和文件名下面的深度坐标文件和颜色坐标文件和图片本身读入
+    
+    """
     camera_space_path = filePath + "\\" + fileNmae + "_cameraPts.txt"
     color_space_path = filePath + "\\" + fileNmae + "_colorPts.txt"
     img_path = filePath + "\\" + fileNmae + ".png"
