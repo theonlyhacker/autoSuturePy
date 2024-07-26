@@ -28,6 +28,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 from subthreads import *
 
+#测试提交
+
 # import save_load_duijiaodian
    
 # kinect 相机参数
@@ -419,40 +421,3 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
-
-# import cv2
-
-# # 读取图像
-# image = cv2.imread('0.png')
-
-# # 初始化第一个点
-# first_point = None
-
-
-# # 定义鼠标事件处理函数
-# def click_event(event, x, y, flags, param):
-#     global first_point
-#     if event == cv2.EVENT_LBUTTONDOWN:
-#         cv2.circle(image, (x, y), 5, (0, 255, 0), -1)  # 绘制圆点标记点击位置
-#         cv2.imshow('image', image)
-
-#         # 记录第一个点
-#         if first_point is None:
-#             first_point = (x, y)
-#         else:
-#             # 第二个点已点击，绘制矩形框
-#             second_point = (x, y)
-#             cv2.rectangle(image, first_point, second_point, (0, 0, 255), 2)  # 绘制矩形框
-#             cv2.imshow('image', image)
-#             first_point = None  # 重置第一个点
-
-
-# # 显示图像并绑定鼠标事件
-# cv2.imshow('image', image)
-# cv2.setMouseCallback('image', click_event)
-
-# while True:
-#     if cv2.waitKey(1) & 0xFF == 27:  # 按 ESC 键退出
-#         break
-
-# cv2.destroyAllWindows()
