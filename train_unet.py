@@ -10,8 +10,8 @@ from torch.utils.data import random_split
 from model.model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
 import os
 
-#原来的epoch是40 batch_size=1
-def train_net(net, device, train_data_path,test_data_path, epochs=20, batch_size=8, lr=0.0001):
+#原来的epoch是40 batch_size=8
+def train_net(net, device, train_data_path,test_data_path, epochs=30, batch_size=8, lr=0.0001):
     # 加载训练集
     train_isbi_dataset = ISBI_Loader(train_data_path)
     test_isbi_dataset = ISBI_Loader(test_data_path)
@@ -57,14 +57,16 @@ def train_net(net, device, train_data_path,test_data_path, epochs=20, batch_size
             print('Loss/train', loss.item())
             writer.add_scalar("Loss/train",loss.item(),global_step)
             # 保存loss值最小的网络参数
-            if loss < best_loss:
-                best_loss = loss
-                #只保存模型参数
-                CUR_PATH=os.path.dirname(os.path.realpath(__file__))
-                save_pth_path = os.path.join(CUR_PATH, "pth\\roi\\unet.pth")
-                torch.save(net.state_dict(), save_pth_path)
-                #保存模型和模型参数
-                #torch.save(net,'best_model.pth')
+            # if loss < best_loss:
+            #     best_loss = loss
+            #     #只保存模型参数
+            #     CUR_PATH=os.path.dirname(os.path.realpath(__file__))
+            #     save_pth_path = os.path.join(CUR_PATH, "pth\\roi\\unet.pth")
+            #     torch.save(net.state_dict(), save_pth_path)
+
+            
+            #     #保存模型和模型参数
+            #     #torch.save(net,'best_model.pth')
             # 更新参数
             loss.backward()
             optimizer.step()
@@ -80,12 +82,19 @@ def train_net(net, device, train_data_path,test_data_path, epochs=20, batch_size
                 # 计算loss
                 # test_loss = 0.5 * criterion1(pred, label) +criterion2(pred,label)
 
-                test_loss = criterion1(pred, label)
+                test_loss = criterion2(pred, label)
                 test_loss_list.append(test_loss)
 
         mean_test_loss = sum(test_loss_list) / len(test_loss_list)
+        if mean_test_loss < best_loss:
+            best_loss = mean_test_loss
+            #只保存模型参数
+            CUR_PATH=os.path.dirname(os.path.realpath(__file__))
+            save_pth_path = os.path.join(CUR_PATH, "pth\\roi\\unet_8_9_30.pth")
+            torch.save(net.state_dict(), save_pth_path)
         writer.add_scalar("Loss/test", mean_test_loss.item(), global_step)
         print("epoch: ", epoch + 1, "  global_step: ", global_step, '   Loss/test', mean_test_loss.item())
+        print(best_loss)
 
 
 if __name__ == "__main__":
@@ -104,7 +113,8 @@ if __name__ == "__main__":
     CUR_PATH=os.path.dirname(os.path.realpath(__file__))
     # print("CUR_PATH",CUR_PATH)
     # exit(0)
-    filepath = "data\\points\\7-1\\6th\\1_copy\\data"
+    filepath = "data\\points\\08-09\\first\\teach\\data"
+    # filepath = 'data\\points\\8-8trainSource\\data'
     train_data_path = os.path.join(CUR_PATH, filepath+"\\train\\")
     test_data_path = os.path.join(CUR_PATH, filepath+"\\test\\")
     train_net(net, device, train_data_path=train_data_path,test_data_path=test_data_path)

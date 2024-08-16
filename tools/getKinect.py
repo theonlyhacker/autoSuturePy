@@ -13,7 +13,7 @@ from scipy.interpolate import splprep, splev, CubicSpline
 from scipy.spatial.transform import Rotation as R
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import pandas as pd
-
+#滤波
 depthSize = 512*424
 
 
@@ -214,7 +214,7 @@ class KinectCapture:
                 most_near = pointIdxNKNSearch[0]
                 # 这里保存了轮廓像素点找到最近点的2d索引，之后应该是在三维空间中得到其坐标，根据索引一一对应的关系
                 edgePointIndex2d.add(most_near)
-        print("the wounds finally area(pixel) size is: ", len(edgePointIndex2d))
+        print("the wounds finally area(pixel) size is: ", len(edgePointIndex2d),edgePointIndex2d)
         # 遍历完边缘点索引
         wound_point_3d = []
         # 测试代码
@@ -235,6 +235,7 @@ class KinectCapture:
     def get_predict_wound_edge(self, pred):
             binary_img = np.uint8(pred)
             contours, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            background = np.ones_like(binary_img) * 255
             if contours:
                 max_contour_area = cv2.contourArea(contours[0])
                 max_contour_idx = 0
@@ -285,7 +286,7 @@ class KinectCapture:
                         background[point[1], point[0]] = 0
                 return only_wound_shape,background
             else:
-                return None
+                return background,background
     
     # 生成带运动点以及从点--展示使用
     def getRm65RunPoints(self,data):
@@ -385,7 +386,7 @@ class KinectCapture:
         total_length = np.sum(distances)
         print("曲线总长度:", total_length)
         segment_length = total_length / num_segments# 计算等距的分段点
-        # print("分段长度:", segment_length)
+        print("分段长度:", segment_length)
         # 查找均匀分布的分段点坐标
         segment_points = [0]  # 起点
         current_distance = 0
@@ -397,9 +398,9 @@ class KinectCapture:
         # 获取等距的插值点并缩放回原始范围
         sampled_points = np.array([[x_new[i] / scale_factor, y_new[i] / scale_factor] for i in segment_points])
         # 计算并打印每段长度
-        # for i in range(1, len(sampled_points)):
-        #     segment_distance = np.linalg.norm(sampled_points[i] - sampled_points[i - 1])
-        #     print(f"Segment {i}: {segment_distance:.6f}")
+        for i in range(1, len(sampled_points)):
+            segment_distance = np.linalg.norm(sampled_points[i] - sampled_points[i - 1])
+            print(f"Segment {i}: {segment_distance:.6f}")
         poses = []
         initial_euler_angles = [3.141, 0, 0]
         initial_rotation = R.from_euler('xyz', initial_euler_angles).as_matrix()
@@ -427,6 +428,7 @@ class KinectCapture:
             rotation_matrix = R.from_euler('z', rz_values[i]).as_matrix()
             corrected_rotation_matrix = initial_rotation @ rotation_matrix
             euler_angles = R.from_matrix(corrected_rotation_matrix).as_euler('xyz')
+            euler_angles = 3.14,0,0
             pose = np.concatenate((p, euler_angles))
             if not np.isnan(pose).any():
                 poses.append(pose)
@@ -445,14 +447,15 @@ class KinectCapture:
         # 针对于偏移量，固定值在c形状下不好用，现在采用线性变换
         # poses[:, 1] -= 0.025 # 固定值方法 将y值统一减去0.02
         # 线性偏移量的方法
-        initial_offset = 0.02# 初始偏移值
+        initial_offset = 0.022# 初始偏移值
         total_offset = 0.008# 总偏移量
         individual_offset = total_offset / len(poses)# 计算每个点的偏移量
         # 改为直线后将偏移量常数化
         # individual_offset = 0
         # 调整后的 y 值
         for i in range(len(poses)):
-            y_offset = initial_offset + i * individual_offset
+            # y_offset = initial_offset + i * individual_offset
+            y_offset = initial_offset
             poses[i, 1] -= y_offset
         return poses
 

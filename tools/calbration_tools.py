@@ -54,7 +54,8 @@ def find_and_display_chessboard_corners(img_path, size):
             cv.putText(copyImg, str(i), point, font, 0.5, (255, 0, 0), 1, cv.LINE_AA)  # Put the index number
         # Modify the image by drawing a rectangle around the first and last corner of the first detection
         point0 = (int(corners_first[0][0][0]), int(corners_first[0][0][1]))
-        point1 = (int(corners_first[24][0][0]), int(corners_first[24][0][1]))
+        # point1 = (int(corners_first[24][0][0]), int(corners_first[24][0][1]))
+        point1 = (int(corners_first[8][0][0]), int(corners_first[8][0][1]))
         # cv.rectangle(copyImg, point0, point1, (0, 0, 255), -1)
         ok, corners_sec = cv.findChessboardCorners(copyImg, size, None)
         if ok: 
@@ -186,7 +187,6 @@ def select_chessboard_pointcloud(img, cameraPts, color_pts_xy, corners):
     x_max = np.max(corners[:, 0])
     y_min = np.min(corners[:, 1])
     y_max = np.max(corners[:, 1])
-
     pool = []
     for index, pt in enumerate(color_pts_xy):
         x, y = pt
@@ -273,7 +273,7 @@ def read_data(filePath, fileNmae):
     # b = os.path.dirname(os.path.dirname(os.path.realpath(sys.executable)))
     # print(b)
     # corners = find_chessboard(img_path=img_path, size=(5, 5))
-    corners,copy_img = find_and_display_chessboard_corners(img_path=img_path, size=(5, 5))
+    corners,copy_img = find_and_display_chessboard_corners(img_path=img_path, size=(3, 3))
     camera_pts = np.loadtxt(camera_space_path)
     # print(camera_pts.shape)
     color_pts_xy = np.loadtxt(color_space_path)

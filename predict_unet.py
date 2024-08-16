@@ -6,6 +6,7 @@ import time
 import csv
 import cv2
 from model.unet_model import UNet
+from save_load_duijiaodian import *
 
 
 # 全局变量，存储kinect相机每次闭合之后的图像，也就是机械臂提到最高or拉紧状态
@@ -18,7 +19,7 @@ class predictImg():
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.net = UNet(n_classes=1,n_channels=1)
         self.net.to(device=self.device)
-        self.net.load_state_dict(torch.load('pth\\roi\\unet.pth', map_location=self.device))
+        self.net.load_state_dict(torch.load('pth\\roi\\unet_8_9_30.pth', map_location=self.device))
         self.net.eval()
 
     # 图像预测
@@ -34,15 +35,27 @@ class predictImg():
         img_tensor = img_tensor.to(device=self.device, dtype=torch.float32)
         # 预测
         pred = self.net(img_tensor)
-        # print(pred.shape)
+        # print('pred1',pred)
         # 提取结果
         sig = nn.Sigmoid()
         pred = sig(pred)
         pred = np.array(pred.data.cpu()[0])[0]
+        # with open('write.txt','w') as f:
+        #     for y in range(pred.shape[0]):
+        #         for x in range(pred.shape[1]):
+        #                 f.write(str(pred[y][x]))
+        #                 f.write('\n')
+        # print('pred.shape',pred.shape)
         # print("-----result----", pred.shape)
         # 将这部分像素从0-1转化为0-255
         # cv2.imwrite("result_python_148.png",pred)
         pred = pred * 255
+        # with open('write1.txt','w') as f:
+        #     for y in range(pred.shape[0]):
+        #         for x in range(pred.shape[1]):
+        #             if pred[y][x]>1:
+        #                 f.write(str(pred[y][x]))
+        #                 f.write('\n')
         return pred
 
     # 计算目标区域对角线长度和像素点个数 
@@ -72,8 +85,8 @@ class predictImg():
         pixel_count = np.sum(max_component)   
 
         # 创建新图像，将最大连通域设置为白色，其他部分设置为黑色
-        result_image = np.ones_like(predicted_image) * 255
-        result_image[max_component > 0] = 0
+        result_image = np.zeros_like(predicted_image)
+        result_image[max_component > 0] = 255
 
         # 获取面积最大的连通域的坐标
         nonzero_coordinates = np.column_stack(np.where(max_component > 0))
@@ -96,15 +109,32 @@ class predictImg():
 if __name__ == "__main__":
     predictImg = predictImg()
     # 单张图测试
-    start_time = time.time()
-    # predict_image = cv2.imread("data\\data\\April\\4-18\\1st\\collect_1\\152_roiColor.jpg")
-    predict_image = cv2.imread("data\\data\\April\\4-28\\top\\origin_1.png")
-    # x,y,w,h = 1266,674,165,35
-    x,y,w,h = 1255,677,180,35
-    roi = predict_image[y:y+h, x:x+w].copy()
-    result = predictImg.predict_img(roi)
-    cv2.imwrite("113.png",result)
-    end_time = time.time()
-    print("time: ",end_time-start_time)
+    # start_time = time.time()
+    # t = time.strftime('%m-%d', time.localtime())
+    # file_index = "first"
+    # run_record_path = "data\\points\\"+ t +"\\"+file_index+"\\origin\\"
+    # path_wound_image = run_record_path + "origin_0.png"
+    # # predict_image = cv2.imread("data\\data\\April\\4-28\\top\\origin_1.png")
+    # predict_image = cv2.imread(path_wound_image)
+    # # predict_image = cv2.imread("data\\data\\April\\4-18\\1st\\collect_1\\152_roiColor.jpg")
+    # # x,y,w,h = 1266,674,165,35
+    # x,y,w,h = load_points_from_file(run_record_path+"origin_0_circle.txt")
+    # print(x,y,w,h)
+    # roi = predict_image[y:y+h, x:x+w].copy()
+    # cv2.imwrite("120.png",roi)
+    # result = predictImg.predict_img(roi)
+    # # result*=255
+    # cv2.imwrite("121.png",result)
+    # end_time = time.time()
+    # print("time: ",end_time-start_time)
+
+
+    # img_path = "data\\points\\7-1\\6th\\1_copy\\collect_0\\80_roiColor.jpg"
+    # img_path = "120.png"
+    img_path = "data\\points\\08-13\\first\\origin\\origin_3.jpg"
+    predict_image = cv2.imread(img_path)
+    res = predictImg.predict_img(predict_image)
+    cv2.imwrite("test_9.jpg",res)
+
     # init_wound_length ,init_pixel_count= predictImg.caculate_img(result)
     # print("init_wound_length: ",init_wound_length,"init_pixel_count: ",init_pixel_count)

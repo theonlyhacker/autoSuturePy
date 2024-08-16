@@ -138,6 +138,7 @@ def rename_file(filePath):
 if __name__ == "__main__":
     # rename_file("data\\kinect\\roi\\1st\\")
     outfile = "data\\points\\7-1\\6th\\1_copy\\"
+    outfile = 'data\\points\\08-09\\first\\teach\\'
     # 存放labelme的文件夹地方, 里面有json文件的同一级
     # filepath = "data\\data\\status_train\\use_wound_roi\\origin"
     labelme2mask(outfile+"origin")

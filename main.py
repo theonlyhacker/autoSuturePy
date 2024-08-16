@@ -35,7 +35,6 @@ from subthreads import *
 # kinect 相机参数
 rgbWidth,rgbHeight = 1920,1080
 depthSize = 512*424
-teach_flag = False
 # 自定义机械臂运动停止信号
 rm65_stop_signal = False
 #   调用结构体 POSE
@@ -82,17 +81,34 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        print("开始初始化kinect相机...") 
+        if(not hasattr(self, 'kinect')):
+            self.kinect = KinectCapture()
+            if self.kinect.connect() == None:
+                print("kinect相机初始化失败")
+            print("kinect相机初始化成功")
+        # 机械臂初始化
+        if(not hasattr(self, 'rm65')):
+            self.rm65 = RobotConnection("192.168.1.19", 8080)
+            self.rm65.connect()
+        self.teach_flag = False
         self.work_thread = None
         self.pressure_thread = None
         self.showWoundStatus = False
         t = time.strftime('%m-%d', time.localtime())
-        file_index = "first"
+        file_index = "second"
         self.run_record_path = "data\\points\\"+t+"\\"+file_index+"\\"
         # self.img_roi = [1064,504,330,50] #roi区域,S曲线整个
         # self.img_roi = [1030,648,185,46] #roi区域,s曲线部分c
+        # self.img_roi = [0,0,1920,1080]
+        pointsfilename = self.run_record_path + "origin\\origin_0_circle.txt"
+        # if not os.path.exists(pointsfilename):
+        #     with open(pointsfilename, 'w') as f:
+        #         f.write("0,0\n1920,1080")
         if os.path.exists(self.run_record_path+"origin\\origin_0_circle.txt"):
             self.img_roi = save_load_duijiaodian.load_points_from_file(self.run_record_path+"origin\\origin_0_circle.txt")
-    
+        self.show_kinect_thread = show_roi_thread(self)
+        self.emergencyStop = Emergencystop(self)
         # self.img_roi = [1263,380,202,80]#兔子
         # self.img_roi = [1020,451,150,40] #roi区域,短粗线部分
         
@@ -148,6 +164,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 print(read_data)
                 if b"motor_stop_signal" in read_data:
                     received_complete_data = True
+                    print("缝合完成")
         if received_complete_data:
             # 处理接收到的数据
             print("Received data:", read_data)
@@ -157,7 +174,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # ser.close()
         
         # 示教模式下每次缝合都需要将当前位置记录下来，并且需要同步记录此时相机图像，压力传感器等多个数据源（未开发）
-        if hasattr(self, 'teach_flag') and hasattr(self, 'rm65'):
+        if self.teach_flag and hasattr(self, 'rm65'):
+            print("qqqqqqqqqqqq")
             timestamp = int(time.time())
             filename = self.record_info + "\\lowSuturePos"
             os.makedirs(os.path.join(filename), exist_ok=True)
@@ -177,16 +195,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #机械臂初始化（待测试）-参考python-demo3就行，设置工作坐标系啥的 
     # 修改为整个系统的初始化--增加图像显示的初始化以及高处预测轨迹点区域的初始化
     def on_initRM65(self):
-        print("开始初始化kinect相机...") 
-        if(not hasattr(self, 'kinect')):
-            self.kinect = KinectCapture()
-            if self.kinect.connect() == None:
-                print("kinect相机初始化失败")
-            print("kinect相机初始化成功")
-        # 机械臂初始化
-        if(not hasattr(self, 'rm65')):
-            self.rm65 = RobotConnection("192.168.1.19", 8080)
-            self.rm65.connect()
+        # print("开始初始化kinect相机...") 
+        # if(not hasattr(self, 'kinect')):
+        #     self.kinect = KinectCapture()
+        #     if self.kinect.connect() == None:
+        #         print("kinect相机初始化失败")
+        #     print("kinect相机初始化成功")
+        # # 机械臂初始化
+        # if(not hasattr(self, 'rm65')):
+        #     self.rm65 = RobotConnection("192.168.1.19", 8080)
+        #     self.rm65.connect()
  
         #修改机械臂工具坐标系 
         current_tool_name = self.rm65.get_currentToolName()
@@ -213,7 +231,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         print("成功运动到原始位置：")
         #初始化相机之后就先提取roi区域，启动相机子线程--保证获取区域不受限制 
-        self.show_kinect_thread = show_roi_thread(self)
+        # self.show_kinect_thread = show_roi_thread(self)
         self.show_kinect_thread.start()
         self.show_kinect_thread.show_status_signal.emit(3)
         print("显示子线程开启")
@@ -250,8 +268,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.rm65.connect()
         # 启动机械臂运动线程
         points = []
-        # self.run_record_path = "data\\points\\7-11\\4th\\5th\\"
-        with open(self.run_record_path+'plan_data_update.txt', 'r') as file:
+        # self.run_record_path = "data\\points\\08-08"
+        with open(self.run_record_path+'plan_data_update_copy.txt', 'r') as file:
             lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
@@ -261,7 +279,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 x, y, z, rx,ry,rz = points_xyz[0],points_xyz[1],points_xyz[2],points_xyz[3],points_xyz[4],points_xyz[5]
                 point = DevMsg(x, y, z, rx, ry, rz)
                 points.append(point)
-
+        # print(points)
         self.work_thread = WorkThread(self,points)
         self.work_thread.start()
 
@@ -278,15 +296,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
     # 机械臂急停
     def on_stopRM65(self):
-        print("进入急停--")
+        print("进入急停--急停线程发出")
+        self.emergencyStop.stop_signal.emit()
         if self.work_thread is not None:
-            print("进入急停---急停信号发出")
+            print("进入急停---workthread线程急停信号发出")
             self.work_thread.stop_signal.emit()
             self.work_thread = None
     
     # 暂停按钮--暂时用作其他功能-输出当前位姿
     def on_stopCurrentRM(self):
         # 暂时用于输出机械臂当前位姿
+        pass 
+  
+    # 旧的暂停按钮功能：输出当前位姿
+    def on_show_current_information(self):
         print("-------------------")
         if(not hasattr(self, 'rm65')):
             self.rm65 = RobotConnection("192.168.1.19", 8080)
@@ -347,7 +370,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.teach_flag = False
         # 关闭连接
         self.rm65.close()
-        self.pressure_thread.stop()
+        # self.pressure_thread.stop()
         self.record_info = ""
         self.record_info_count = 0
         print('资源已释放，示教结束')
@@ -376,11 +399,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # 从四通道的RGBA转换为三通道的BGR
                 rgb_img = cv2.cvtColor(colorImg, cv2.COLOR_BGRA2BGR)
                 # print(file_name)
-                cv2.imwrite(file_name+f"\\origin_{i}.png", rgb_img)
+                cv2.imwrite(file_name+f"\\origin_{i}.jpg", rgb_img)
         print("图像收集成功")
         # 显示图像并绑定鼠标事件
         # 定义鼠标事件处理函数
-        image=cv2.imread(file_name+"\\origin_0.png")
+        image=cv2.imread(file_name+"\\origin_0.jpg")
+        image_clone = cv2.imread(file_name+"\\origin_1.jpg")
         def click_event(event, x, y, flags, param):
             if event == cv2.EVENT_LBUTTONDOWN:
                 pixel_value = image[y, x]
@@ -388,23 +412,24 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 # 显示点击的像素点
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 # cv2.putText(image, str([x,y]), (x, y), font, 0.5, (0, 255, 0), 2)
-                cv2.circle(image, (x, y), 5, (0, 255, 0), -1)  # 绘制圆点标记点击位置
+                cv2.circle(image, (x, y), 2, (0, 255, 0), -1)  # 绘制圆点标记点击位置
                 cv2.imshow('image', image)
                 clicked_points.append((x,y))
             if len(clicked_points)==2:
-                cv2.rectangle(image, clicked_points[0], clicked_points[1], (0, 0, 255), 2)  # 绘制矩形框
-                cv2.imwrite(file_name+f"\\origin_4.png", image)
+                cv2.rectangle(image, clicked_points[0], clicked_points[1], (0, 0, 255), 1)  # 绘制矩形框
+                cv2.imwrite(file_name+f"\\origin_4.jpg", image)
             cv2.imshow('image', image)
         cv2.imshow('image', image)
         cv2.setMouseCallback('image', click_event)
         cv2.waitKey(0)
         a,b = clicked_points[0]
         c,d = clicked_points[1]
-        image2 = image[b:d,a:c]
-        cv2.imwrite(file_name+f"\\origin_3.png", image2)
+        image2 = image_clone[b:d,a:c]
+        cv2.imwrite(file_name+f"\\origin_3.jpg", image2)
+        # cv2.imwrite(file_name+f"\\origin_10.jpg", image2)
         save_load_duijiaodian.save_points_to_file(clicked_points,file_name+f"\\origin_0_circle.txt")
         cv2.destroyAllWindows()
-        sys.exit()
+        # sys.exit()
         # cur = 0
         # path="data\\points\\7-15\\rec\\"
         # while(1):

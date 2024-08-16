@@ -207,37 +207,19 @@ class show_roi_thread(QThread):
         consecutive_ones_count = 0
         final_img = None  # 用于叠加三张图像的变量
         origin_img = None
-        if os.path.exists(run_record_path+"origin\\origin_0_circle.txt"):
-            x,y,w,h = save_load_duijiaodian.load_points_from_file(run_record_path+"origin\\origin_0_circle.txt") # s曲线部分c--
         while self.show_roi_status:
             color,depth = self.kinect.get_frames()
             # 找到的第一张非空图片用来跟新视觉显示区域，其他的用来判断状态
             if color is not None:
                 roi_img = color[y:y+h, x:x+w].copy()
                 if self.show_status == 0:
-                    # print('状态0')
+                    print('状态0')
                     scale_img = roi_img.copy()
                     height, width, channel = scale_img.shape
                     bytes_per_line = 3 * width# 将图像转换为QImage,三通道的用这个方法
-                    # q_image = QImage(scale_img.data, width, height,bytes_per_line, QImage.Format_BGR888)
-                    # self.main_thread.label_img.setPixmap(QPixmap.fromImage(q_image))# 在 QLabel 中显示图像，并使用填充方式
-                    # self.main_thread.label_img.setScaledContents(True)
-                    q_image = QImage(scale_img.data, width, height, bytes_per_line, QImage.Format_BGR888)
-
-                    # 将 QImage 转换为 QPixmap
-                    pixmap = QPixmap.fromImage(q_image)
-
-                    # 获取 QLabel 的尺寸
-                    label_size = self.main_thread.label_img.size()
-
-                    # 按比例缩放 QPixmap 以适应 QLabel 的尺寸，保持宽高比
-                    scaled_pixmap = pixmap.scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-                    # 在 QLabel 中显示缩放后的图像
-                    self.main_thread.label_img.setPixmap(scaled_pixmap)
-
-                    # 确保 QLabel 不会拉伸图像以填满整个标签，保持宽高比
-                    self.main_thread.label_img.setScaledContents(False)
+                    q_image = QImage(scale_img.data, width, height,bytes_per_line, QImage.Format_BGR888)
+                    self.main_thread.label_img.setPixmap(QPixmap.fromImage(q_image))# 在 QLabel 中显示图像，并使用填充方式
+                    self.main_thread.label_img.setScaledContents(True)
                     if consecutive_ones_count < 3:
                         start_time = time.time()
                         pred = self.predict_roi_img.predict_img(roi_img)
@@ -248,7 +230,6 @@ class show_roi_thread(QThread):
                             final_img = final_img | binary_img  # 按位或运算符
                         # 连续获取三次kinect图像进而进行路径规划--防止单张图像预测效果不好,以或运算，只要预测到的roi区域都渲染
                         consecutive_ones_count +=1
-                        cv2.imwrite("815.png",binary_img)
                     elif consecutive_ones_count == 3 :
                         wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
                         height, width = multi_pred_img.shape
@@ -279,9 +260,6 @@ class show_roi_thread(QThread):
                     consecutive_ones_count +=1
                     if consecutive_ones_count == 3 :
                         wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
-                        print('wound_shape_data.shape',wound_shape_data.shape)
-                        print('multi_pred_img.shape',multi_pred_img.shape)
-                        print('final_img.shape',final_img.shape)
                         height, width = multi_pred_img.shape
                         bytes_per_line = width
                         q_image = QImage(multi_pred_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
@@ -349,14 +327,14 @@ class show_roi_thread(QThread):
                     # print("edgePoints数据如下",edgePoints)
                     # wound_data_kinect=self.kinect.search_3dImgIndex(edgePoints)#得到roi目标xy系列坐标后得到其三维空间坐标(kinect坐标系下)
                     wound_point_3d = cal_trans_data(edgePoints)#计算得到这些点在rm65基坐标系下的表达式
-                    # print("*"*20)
-                    # print(wound_point_3d)
-                    # print("*"*20)
+                    print("*"*20)
+                    print(wound_point_3d)
+                    print("*"*20)
                     func_data=[]
                     for i in wound_point_3d:
                         # func_data.append([i[0],i[1],0.028])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                         # func_data.append([i[0],i[1],0.078])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
-                        func_data.append([i[0],i[1],0.052])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
+                        func_data.append([i[0],i[1],i[2]])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                     plan_wound_data = self.kinect.getTurePointsRm65(func_data,5)
                     plan_data_update = self.kinect.offSet_planData(plan_wound_data)
                     np.savetxt(filePath+"wound_data_rm65.txt",func_data, fmt='%.6f')
@@ -472,20 +450,6 @@ class collect_Kinect_Pressure(QThread):
     def stop(self):
         self.stop_requested = True
 
-class Emergencystop(QThread):
-    stop_signal = pyqtSignal()
-    def __init__(self,main_thread):
-        super().__init__()
-        self.rm65 = main_thread.rm65
-        self.kinect = main_thread.kinect
-        self.show_kinect_thread = main_thread.show_kinect_thread
-        self.main_thread = main_thread
-        self.work_thread = main_thread.work_thread
-        self.stop_signal.connect(self.stop)
-        
-    def stop(self):
-        self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)
-        sys.exit()
 
 # 自定义RM65机械臂运动线程类
 class WorkThread(QThread):
@@ -502,7 +466,7 @@ class WorkThread(QThread):
         self.status_thread = None
         self.points = points
 
-        self.stop_signal.connect(self.Emergencystop)
+        self.stop_signal.connect(self.stop)
 
 
     def run(self):
@@ -527,11 +491,9 @@ class WorkThread(QThread):
                 if motor_signal == "motor_run_successful":
                     print("缝合完成，开始抬升")
                     temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
-                    # temp_point.pz = 1 * 0.01 + temp_point.pz
-                    temp_point.px -= 0.006
-                    temp_point.pz = (21 - index * 3) * 0.005 + temp_point.pz
                     # temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
-                    # temp_point.px -= 0.005
+                    temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
+                    temp_point.px -= 0.005
                     # 订书机模式
                     # temp_point.pz = (5) * 0.01 + temp_point.pz
                     # ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
@@ -539,7 +501,7 @@ class WorkThread(QThread):
                         ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
                     else:
                         # 第一针之后的缝合，需要启动状态判断子线程，进行状态判断
-                        # self.show_kinect_thread.show_status_signal.emit(2)
+                        self.show_kinect_thread.show_status_signal.emit(2)
                         # print(f"temp_point: {temp_point.px},py:{temp_point.py},pz: {temp_point.pz},rx:{temp_point.rx},ry:{temp_point.ry},rz:{temp_point.rz}")
                         # print(f"goal_point: {point.px},py:{point.py},pz: {point.pz},rx:{point.rx},ry:{point.ry},rz:{point.rz}")
                         ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
@@ -552,7 +514,7 @@ class WorkThread(QThread):
             txtfile.write(str("50")+"  "+str(self.end_time-self.start_time)+str("")+'\n')
             txtfile.flush()  # 为了将缓冲区中的内容强制写入
         print("the spend time is :",self.end_time-self.start_time)
-        # self.show_kinect_thread.stop()#缝合完成默认停止
+        self.show_kinect_thread.stop()#缝合完成默认停止
         self.stop()
 
 
@@ -562,10 +524,5 @@ class WorkThread(QThread):
             print("结束实时位姿展示线程")
             # 定时器的启动和暂停不能跨线程，所以该命令报错
             # self.main_thread.timer_pos.stop()
-        self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)
-        # sys.exit()
-    
-    def Emergencystop(self):
-        print("程序进入急停，已提前终止")
         self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)
         sys.exit()

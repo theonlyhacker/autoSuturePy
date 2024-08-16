@@ -3,8 +3,7 @@ import os
 import sys
 import cv2 as cv
 # 当前文件运行，也可以用python -m tools.calibration 这样运行，将当前文件作为包
-# from getKinect import KinectCapture
-# from calbration_tools import *
+
 # 从mian方法中调用
 from .getKinect import KinectCapture
 from .calbration_tools import *
@@ -262,12 +261,18 @@ def cal_trans_data(edge_point):
     返回:
     numpy.ndarray: 机械臂基座坐标系中的3D点,形状为 (3,)。
     """
-    readPath= "data\\points\\7-24\\1st\\"
+    
+    
     # readPath= "data\\points\\7-24\\1st\\"
+    readPath = "data\\points\\8-5\\calibrationAll\\"
     trans_martix = np.loadtxt(readPath+"trans_new.txt")
     kinect = KinectCapture()
     # edge_point = [[1262,362],[988,497]]
     data_in_kinect = kinect.search_3dImgIndex(edgePoints=edge_point)
+    print("边缘点的个数为",len(data_in_kinect))
+   
+    print("边缘点的相机坐标为：")
+    print(data_in_kinect)
     result = []
     for i in data_in_kinect:
         data_in_rm = transform_point(i,trans_martix)
@@ -276,11 +281,38 @@ def cal_trans_data(edge_point):
         result.append(data_in_rm)
     print(f"the size of pointd in rm65: {len(result)}")
     return result
+'''
+# cyl
+def transform_rm_65(point,transformation_matrix):
+    point_homogeneous = np.append(point,1)
+    transformed_point_homogeneous = np.dot(np.linalg.inv(transformation_matrix),point_homogeneous)
+    transformed_point = transformed_point_homogeneous[:3] * transformed_point_homogeneous[3]
+    return transformed_point
+
+# def data_trans_cal(rm_65_point)
+def data_trans_cal(readPath):
+    rm_65_point = 'data/points/08-14/first/plan_data_update.txt'
+    kinectCapture = KinectCapture()
+
+    trans_matrix = np.loadtxt(readPath+'trans_new.txt')
+    result = []
+    with open(rm_65_point,'r') as file:
+        lines = file.readlines()
+        for l in lines:
+            points_xyz = np.array([float(val) for val in l.strip().split()[:3]])
+            data_in_depth = transform_rm_65(points_xyz,trans_matrix)
+            result.append(data_in_depth.tolist())
+    print(result)
+
+# cyl
+'''
 
 
 if __name__ == '__main__':
+    from getKinect import KinectCapture
+    from calbration_tools import *
     print("---------------------")
-    readPath = "data\\points\\7-24\\1st\\"
+    readPath = "data\\points\\8-5\\calibrationAll\\"
     1 # 保存点云信息
     # os.makedirs(os.path.join(readPath), exist_ok=True)
     # kinect = KinectCapture()
@@ -290,12 +322,14 @@ if __name__ == '__main__':
     # record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
     # exit()
     # # 记录机械臂在这些点的位置信息得到robot_Pts.txt文档，记录顺序与角点顺序一致
-    # # 3
+    # 3
     # save_trans_martix(readPath) #然后运行该方法得到其转换矩阵
     # exit()
     # 4--测试
-    edge_point = [[1078,412]]
+    edge_point = [[1078, 458],[1222, 390]]
     cal_trans_data(edge_point)# 传入像素数组，进行测试or计算--记得修改读取权重文件的路径
+    # data_trans_cal(readPath)
+
     exit()
     # # 示例调用
     plot_3d_from_file(readPath+"\\wound\\wound_data_rm65.txt")

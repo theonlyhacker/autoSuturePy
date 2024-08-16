@@ -27,3 +27,23 @@ class DiceLoss(nn.Module):
 # label = torch.tensor([[1,0],[0,1]])
 # loss = DiceLoss()
 # print(loss(pred,label))a
+
+
+class DiceLoss_test(nn.Module):
+    def __init__(self):
+        super(DiceLoss, self).__init__()
+        self.epsilon = 1e-5
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, predict, target):
+        assert predict.size() == target.size()
+        dice_list = []
+        for i in range(8):
+            union = predict[i] * target[i]
+            dice = 2 * torch.sum(union) / (torch.sum(predict[i]) + torch.sum(target[i]))
+            dice_list.append(dice)
+            dice_list = torch.tensor(dice_list)
+        # score = 2 * (intersection + self.epsilon) / (union + self.epsilon)
+
+        return torch.mean(dice_list)
+    

@@ -46,11 +46,11 @@ class ISBI_Loader(Dataset):
         # cv2.waitKey(0)
         image = image.reshape(1, image.shape[0], image.shape[1])
         label = label.reshape(1, label.shape[0], label.shape[1])
-        # print(label.shape)
+        print(label.shape)
 
         # 处理标签，将像素值为255的改为1
-        if label.max() > 1:
-            label = label / 255
+        # if label.max() > 1:
+        #     label = label / 255
         # 随机进行数据增强，为2时不做处理
         flipCode = random.choice([-1, 0, 1, 2])
         if flipCode != 2:
@@ -71,6 +71,7 @@ if __name__ == "__main__":
 
 
     isbi_dataset = ISBI_Loader(r"D:\Program Files\company\Jinjia\Projects\autoSuturePy\Unet\data\3_7\data\test")
+    isbi_dataset = ISBI_Loader('')
     print("数据个数：", len(isbi_dataset))
     isbi_dataset[0]
     # train_loader = torch.utils.data.DataLoader(dataset=isbi_dataset,
