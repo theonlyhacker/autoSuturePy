@@ -13,6 +13,8 @@ from scipy.interpolate import splprep, splev, CubicSpline
 from scipy.spatial.transform import Rotation as R
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import pandas as pd
+# from tools.calibration import data_trans_cal
+
 #滤波
 depthSize = 512*424
 
@@ -48,7 +50,7 @@ class KinectCapture:
             return color_image, depth_image
         
         return None, None
-    # 将深度图像转换为相机中的点
+    # 将深度图像转换为相机中的点#
     def get_camera_space_points(self, depth_frame):
         # 创建一个空的_CameraSpacePoint数组来存储结果
         camera_space_points = (PyKinectV2._CameraSpacePoint * depth_frame.size)()
@@ -60,6 +62,7 @@ class KinectCapture:
         # 打印深度帧对应的相机空间点
         # for point in camera_space_points:
         #     print("X: {}, Y: {}, Z: {}".format(point.x, point.y, point.z))
+        print(len(camera_space_points))
         return camera_space_points
     # 将深度帧映射到彩色图像的坐标空间
     def get_color_space_points(self, depth_frame):
@@ -73,7 +76,7 @@ class KinectCapture:
         # 打印深度帧对应的颜色空间点
         # for point in color_space_points:
         #     print("X: {}, Y: {}".format(point.x, point.y))
-        # print("Size of color_space_points: ", len(color_space_points))
+        print("Size of color_space_points: ", len(color_space_points))
         return color_space_points
 
     def get_point_cloud(self,color_image):
@@ -192,6 +195,7 @@ class KinectCapture:
         for i in range(len(color_space_points)):
             cloud.append([color_space_points[i].x, color_space_points[i].y, 0])
         cloud = np.array(cloud, dtype=np.float32)
+        
         cloud = pcl.PointCloud.PointXYZ.from_array(cloud)
 
         kdtree = pcl.kdtree.KdTreeFLANN.PointXYZ()
@@ -214,7 +218,7 @@ class KinectCapture:
                 most_near = pointIdxNKNSearch[0]
                 # 这里保存了轮廓像素点找到最近点的2d索引，之后应该是在三维空间中得到其坐标，根据索引一一对应的关系
                 edgePointIndex2d.add(most_near)
-        print("the wounds finally area(pixel) size is: ", len(edgePointIndex2d),edgePointIndex2d)
+        # print("the wounds finally area(pixel) size is: ", len(edgePointIndex2d),edgePointIndex2d)
         # 遍历完边缘点索引
         wound_point_3d = []
         # 测试代码
@@ -232,8 +236,9 @@ class KinectCapture:
         # cv2.imwrite(filename + 'result.png', color_result_image)
         return wound_point_3d
 
-    def get_predict_wound_edge(self, pred):
+    def get_predict_wound_edge(self, pred,int_array_plan):
             binary_img = np.uint8(pred)
+            # cv2.RETR_EXTERNAL: 只检索最外层的轮廓。
             contours, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             background = np.ones_like(binary_img) * 255
             if contours:
@@ -281,12 +286,19 @@ class KinectCapture:
                             segment_points.append(suture_point1.astype(int))
                             segment_points.append(suture_point2.astype(int))
                     # 在背景图像上绘制分段点，黑色
-                for point in segment_points:
+                for point in int_array_plan:
+                    if 0 <= point[1] < background.shape[0] and 0 <= point[0] < background.shape[1]:
+                        background[point[1], point[0]] = 0
+                # for point in segment_points:
+                #     if 0 <= point[1] < background.shape[0] and 0 <= point[0] < background.shape[1]:
+                #         background[point[1], point[0]] = 0
+                return only_wound_shape,background
+            else:
+                only_wound_shape = background.copy()
+                for point in int_array_plan:
                     if 0 <= point[1] < background.shape[0] and 0 <= point[0] < background.shape[1]:
                         background[point[1], point[0]] = 0
                 return only_wound_shape,background
-            else:
-                return background,background
     
     # 生成带运动点以及从点--展示使用
     def getRm65RunPoints(self,data):
@@ -385,13 +397,20 @@ class KinectCapture:
 
         total_length = np.sum(distances)
         print("曲线总长度:", total_length)
+        zheng_length = int(total_length*100)
         segment_length = total_length / num_segments# 计算等距的分段点
-        print("分段长度:", segment_length)
+        zheng_segment = total_length / zheng_length
+        # print("分段长度:", segment_length)
+        print("期望1cm的分段长度", zheng_segment)
         # 查找均匀分布的分段点坐标
         segment_points = [0]  # 起点
         current_distance = 0
-        for i in range(1, num_segments):
-            current_distance += segment_length
+        # for i in range(1, num_segments):
+        #     current_distance += segment_length
+        #     target_index = np.searchsorted(np.cumsum(distances), current_distance)
+        #     segment_points.append(target_index)
+        for i in range(1, zheng_length):
+            current_distance += zheng_segment
             target_index = np.searchsorted(np.cumsum(distances), current_distance)
             segment_points.append(target_index)
         segment_points.append(len(x_new) - 1)  # 终点
@@ -401,6 +420,7 @@ class KinectCapture:
         for i in range(1, len(sampled_points)):
             segment_distance = np.linalg.norm(sampled_points[i] - sampled_points[i - 1])
             print(f"Segment {i}: {segment_distance:.6f}")
+            print(f"zhengSegment {i}: {zheng_segment:.6f}")
         poses = []
         initial_euler_angles = [3.141, 0, 0]
         initial_rotation = R.from_euler('xyz', initial_euler_angles).as_matrix()
@@ -447,8 +467,10 @@ class KinectCapture:
         # 针对于偏移量，固定值在c形状下不好用，现在采用线性变换
         # poses[:, 1] -= 0.025 # 固定值方法 将y值统一减去0.02
         # 线性偏移量的方法
-        initial_offset = 0.022# 初始偏移值
+        # initial_offset = 0.022# 初始偏移值
+        initial_offset = 0.026# 初始偏移值
         total_offset = 0.008# 总偏移量
+        x_offset = 0.000
         individual_offset = total_offset / len(poses)# 计算每个点的偏移量
         # 改为直线后将偏移量常数化
         # individual_offset = 0
@@ -457,7 +479,34 @@ class KinectCapture:
             # y_offset = initial_offset + i * individual_offset
             y_offset = initial_offset
             poses[i, 1] -= y_offset
+            poses[i ,0] += x_offset
         return poses
+    
+    # cyl
+    def save_point_cloud_cyl(self, filename):
+        color_image, depth_img = self.get_frames()
+        # 获取深度帧 
+        depth_frame = self.kinect.get_last_depth_frame()
+        # 获取相机空间点
+        camera_space_points = self.get_camera_space_points(depth_frame)
+        # 获取颜色空间点
+        color_space_points = self.get_color_space_points(depth_frame)
+        # 为每个深度点分配颜色
+        with open(filename+'result_cameraPts_cyl.txt', 'w') as f1, open(filename+'result_colorPts_cyl.txt', 'w') as f2:
+            for i, point in enumerate(camera_space_points):
+                x, y, z = float(point.x), float(point.y), float(point.z)
+                if not (np.isinf(x) or np.isinf(y) or np.isinf(z)):  # 如果点的坐标不是inf或-inf
+                    color_space_point = color_space_points[i]
+                    x_c, y_c = int(color_space_point.x), int(color_space_point.y)
+                    if 0 <= x_c < color_image.shape[1] and 0 <= y_c < color_image.shape[0]:
+                        color = color_image[y_c, x_c]/255.0
+                        point = [point.x, point.y, point.z]
+                        # 将点的坐标写入camera_space_points.txt
+                        f1.write(f"{point[0]} {point[1]} {point[2]}\n")
+                        # 将颜色空间点的坐标写入color_space_points.txt
+                        f2.write(f"{float(color_space_point.x)} {float(color_space_point.y)}\n")
+    # cyl
+
 
 # 渲染伤口带规划点和实际点云信息，查看其分布
 def plotPy_CLoss(data1,data2):
@@ -496,9 +545,6 @@ def show_dis(file_path):
     y = data[:, 1]
     # 计算点之间的距离
     distances = np.sqrt(np.diff(x)**2 + np.diff(y)**2)
-    # 打印计算的距离
-    print("Distances between points:")
-    print(distances)
     # 可视化展示
     plt.figure(figsize=(10, 6))
     plt.plot(x, y, marker='o', linestyle='-', color='b')
@@ -518,16 +564,18 @@ def show_dis(file_path):
     plt.ylim(mid_y - max_range, mid_y + max_range)
     plt.show()
 
+
+
+
 if __name__ == "__main__":
-    kinect = KinectCapture()
     # 文件保存位置
-    file_path = "data\\points\\7-19\\3rd\\"
+    file_path = "data\\points\\08-27\\first\\"
     data = np.loadtxt(file_path + 'wound_data_rm65.txt')#特征点数据，kinect相机检索到的3d点集合
     wound_points_name = "plan_data.txt"
     # plan_points = kinect.getTurePointsRm65(data,num_segments=10)##还存在问题，待修改
     # np.savetxt(file_path+wound_points_name,plan_points,fmt='%.6f')
     # exit()
-    # show_dis(file_path+wound_points_name)
+    show_dis(file_path+wound_points_name)
     # exit()
     plan_points = np.loadtxt(file_path + wound_points_name)
     plotPy_CLoss(data,plan_points)

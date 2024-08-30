@@ -91,12 +91,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if(not hasattr(self, 'rm65')):
             self.rm65 = RobotConnection("192.168.1.19", 8080)
             self.rm65.connect()
+        current_tool_name = self.rm65.get_currentToolName()
+        print("当前工具坐标系:" + str(current_tool_name))
+        float_joint = ctypes.c_float * 6
+        joint = float_joint()
+        str_buf = ctypes.create_string_buffer("autoSu".encode('utf-8'))
+        self.rm65.pDll.Change_Tool_Frame(self.rm65.nSocket, str_buf, 1)
+        current_tool_name = self.rm65.get_currentToolName()
+        print("当前工具坐标系(修改之后):" + str(current_tool_name))
         self.teach_flag = False
         self.work_thread = None
         self.pressure_thread = None
         self.showWoundStatus = False
+        self.statue = 0
         t = time.strftime('%m-%d', time.localtime())
-        file_index = "second"
+        file_index = "first"
         self.run_record_path = "data\\points\\"+t+"\\"+file_index+"\\"
         # self.img_roi = [1064,504,330,50] #roi区域,S曲线整个
         # self.img_roi = [1030,648,185,46] #roi区域,s曲线部分c
@@ -143,6 +152,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         roi_img = colorImg[y:y+h, x:x+w].copy()
         cv2.imwrite(filename + f"\\{self.record_info_count}_High_roi.jpg",roi_img)
         print("当前位置所有信息成功记录")
+    
+    # 新的位姿记录按钮
+    def on_position_record(self):
+        filename = self.run_record_path
+        os.makedirs(os.path.join(filename), exist_ok=True)
+        # 记录当前的机械臂位姿信息
+        current_pose = self.rm65.get_currentPose()
+        with open(filename + '\\position_record.txt', 'a') as f2:
+            f2.write(f"{current_pose.px} {current_pose.py} {current_pose.pz} {current_pose.rx} {current_pose.ry} {current_pose.rz}\n")
 
     # 电机测试&&示教模式记录接口  缝合下针按钮
     def on_testSuture(self):
@@ -205,7 +223,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # if(not hasattr(self, 'rm65')):
         #     self.rm65 = RobotConnection("192.168.1.19", 8080)
         #     self.rm65.connect()
- 
+
         #修改机械臂工具坐标系 
         current_tool_name = self.rm65.get_currentToolName()
         print("当前工具坐标系:" + str(current_tool_name))
@@ -227,8 +245,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         joint[3] = 0
         joint[4] = 0
         joint[5] = 0
+        # joint[0] = 9.066
+        # joint[1] = -16.301
+        # joint[2] = 119.233
+        # joint[3] = -2.489
+        # joint[4] = 76.874
+        # joint[5] = 174.591
         # # MoveJ 运动
-        ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
+        # ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 5, 0, 1)
         print("成功运动到原始位置：")
         #初始化相机之后就先提取roi区域，启动相机子线程--保证获取区域不受限制 
         # self.show_kinect_thread = show_roi_thread(self)
@@ -247,6 +271,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         joint[3] = -2.492
         joint[4] = 74.47
         joint[5] = 170.7
+        
+        joint[0] = 9.066
+        joint[1] = -16.301
+        joint[2] = 119.233
+        joint[3] = -2.489
+        joint[4] = 76.874
+        joint[5] = 174.591
         ret = self.rm65.pDll.Movej_Cmd(self.rm65.nSocket, joint, 20, 0, 1)
         if ret != 0:
             print("Movec_Cmd 1 失败:" + str(ret))
@@ -266,10 +297,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print("开始run rm65线程")
             self.rm65 = RobotConnection("192.168.1.19", 8080)
             self.rm65.connect()
+        current_tool_name = self.rm65.get_currentToolName()
+        print("当前工具坐标系:" + str(current_tool_name))
+        float_joint = ctypes.c_float * 6
+        joint = float_joint()
+        str_buf = ctypes.create_string_buffer("autoSu".encode('utf-8'))
+        self.rm65.pDll.Change_Tool_Frame(self.rm65.nSocket, str_buf, 1)
+        current_tool_name = self.rm65.get_currentToolName()
+        print("当前工具坐标系(修改之后):" + str(current_tool_name))
         # 启动机械臂运动线程
         points = []
         # self.run_record_path = "data\\points\\08-08"
-        with open(self.run_record_path+'plan_data_update_copy.txt', 'r') as file:
+        with open(self.run_record_path+'plan_data_update.txt', 'r') as file:
             lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
@@ -281,6 +320,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 points.append(point)
         # print(points)
         self.work_thread = WorkThread(self,points)
+        if self.statue == 0:
+            self.work_thread.statue_signal.emit(0)
+        elif self.statue == 1:
+            self.work_thread.statue_signal.emit(0)
+        elif self.statue == 2:
+            self.work_thread.statue_signal.emit(1)
         self.work_thread.start()
 
     #更新机械臂位姿信息 
@@ -293,21 +338,37 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.rm65_rx.setText(f"{cur_pose.rx:.3f}")
             self.rm65_ry.setText(f"{cur_pose.ry:.3f}")
             self.rm65_rz.setText(f"{cur_pose.rz:.3f}")
+            self.motor_speed.setText("2")
+            self.motor_current.setText("30")
+            self.motor_position.setText("0.5")
+            self.motor_ifwork.setText("是")
+            if self.work_thread is not None:
+                motorIswork = self.work_thread.motorIswork
+                if motorIswork==False:
+                    self.motor_ifwork.setText("否")
 
     # 机械臂急停
     def on_stopRM65(self):
         print("进入急停--急停线程发出")
-        self.emergencyStop.stop_signal.emit()
         if self.work_thread is not None:
             print("进入急停---workthread线程急停信号发出")
             self.work_thread.stop_signal.emit()
             self.work_thread = None
-    
-    # 暂停按钮--暂时用作其他功能-输出当前位姿
+        self.emergencyStop.stop_signal.emit()
+    count = 0
+    # 暂停按钮--暂时修改为换针按钮
     def on_stopCurrentRM(self):
         # 暂时用于输出机械臂当前位姿
-        pass 
-  
+        print("换针按钮被点击")
+        if self.count%2==0:
+            self.work_thread.pause_signal.emit(0)
+            print("换针信号已经发送")
+            if self.count == 4:
+                pass
+        else:
+            self.work_thread.pause_signal.emit(1)
+        self.count += 1
+
     # 旧的暂停按钮功能：输出当前位姿
     def on_show_current_information(self):
         print("-------------------")
@@ -439,7 +500,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         #         cur = cur+1
         #         time.sleep(0.04)
 
-
+    def statue1(self):
+        self.statue = 1
+    def statue2(self):
+        self.statue = 2
+        print("另一个按钮被点击")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -11,7 +11,7 @@ from model.model_unet import ReconstructiveSubNetwork, DiscriminativeSubNetwork
 import os
 
 #原来的epoch是40 batch_size=8
-def train_net(net, device, train_data_path,test_data_path, epochs=30, batch_size=8, lr=0.0001):
+def train_net(net, device, train_data_path,test_data_path, epochs=50, batch_size=8, lr=0.0001):
     # 加载训练集
     train_isbi_dataset = ISBI_Loader(train_data_path)
     test_isbi_dataset = ISBI_Loader(test_data_path)
@@ -90,7 +90,7 @@ def train_net(net, device, train_data_path,test_data_path, epochs=30, batch_size
             best_loss = mean_test_loss
             #只保存模型参数
             CUR_PATH=os.path.dirname(os.path.realpath(__file__))
-            save_pth_path = os.path.join(CUR_PATH, "pth\\roi\\unet_8_9_30.pth")
+            save_pth_path = os.path.join(CUR_PATH, "pth\\roi\\unet_8_27_50.pth")
             torch.save(net.state_dict(), save_pth_path)
         writer.add_scalar("Loss/test", mean_test_loss.item(), global_step)
         print("epoch: ", epoch + 1, "  global_step: ", global_step, '   Loss/test', mean_test_loss.item())
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     CUR_PATH=os.path.dirname(os.path.realpath(__file__))
     # print("CUR_PATH",CUR_PATH)
     # exit(0)
-    filepath = "data\\points\\08-09\\first\\teach\\data"
+    filepath = "data\\points\\08-21\\first\\teach\\data"
     # filepath = 'data\\points\\8-8trainSource\\data'
     train_data_path = os.path.join(CUR_PATH, filepath+"\\train\\")
     test_data_path = os.path.join(CUR_PATH, filepath+"\\test\\")

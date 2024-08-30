@@ -15,8 +15,9 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
-from tools.calibration import cal_trans_data
+from tools.calibration import cal_trans_data,data_trans_cal
 import save_load_duijiaodian
+import threading
 
 # roi区域--统一在这里进行更改--也可以用信号和槽的方式进行传递？？？
 # x,y,w,h = 1020,451,150,40 #--短粗线--
@@ -209,7 +210,12 @@ class show_roi_thread(QThread):
         origin_img = None
         if os.path.exists(run_record_path+"origin\\origin_0_circle.txt"):
             x,y,w,h = save_load_duijiaodian.load_points_from_file(run_record_path+"origin\\origin_0_circle.txt") # s曲线部分c--
-        while self.show_roi_status:
+
+        # cyl
+        # self.kinect.save_point_cloud_cyl(run_record_path,color)
+        int_array_plan = []
+
+        while self.show_roi_status:            
             color,depth = self.kinect.get_frames()
             # 找到的第一张非空图片用来跟新视觉显示区域，其他的用来判断状态
             if color is not None:
@@ -218,26 +224,23 @@ class show_roi_thread(QThread):
                     # print('状态0')
                     scale_img = roi_img.copy()
                     height, width, channel = scale_img.shape
-                    bytes_per_line = 3 * width# 将图像转换为QImage,三通道的用这个方法
+                    
+                    # 将图像转换为QImage,三通道的用这个方法
+                    bytes_per_line = 3 * width
+                    q_image = QImage(scale_img.data, width, height, bytes_per_line, QImage.Format_BGR888)
+
                     # q_image = QImage(scale_img.data, width, height,bytes_per_line, QImage.Format_BGR888)
                     # self.main_thread.label_img.setPixmap(QPixmap.fromImage(q_image))# 在 QLabel 中显示图像，并使用填充方式
                     # self.main_thread.label_img.setScaledContents(True)
-                    q_image = QImage(scale_img.data, width, height, bytes_per_line, QImage.Format_BGR888)
 
-                    # 将 QImage 转换为 QPixmap
-                    pixmap = QPixmap.fromImage(q_image)
-
-                    # 获取 QLabel 的尺寸
-                    label_size = self.main_thread.label_img.size()
-
+                    # 以最大适应的方式填充图像
+                    pixmap = QPixmap.fromImage(q_image)  # 将 QImage 转换为 QPixmap
+                    label_size = self.main_thread.label_img.size()  # 获取 QLabel 的尺寸
                     # 按比例缩放 QPixmap 以适应 QLabel 的尺寸，保持宽高比
                     scaled_pixmap = pixmap.scaled(label_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-                    # 在 QLabel 中显示缩放后的图像
-                    self.main_thread.label_img.setPixmap(scaled_pixmap)
-
-                    # 确保 QLabel 不会拉伸图像以填满整个标签，保持宽高比
-                    self.main_thread.label_img.setScaledContents(False)
+                    self.main_thread.label_img.setPixmap(scaled_pixmap)  # 在 QLabel 中显示缩放后的图像
+                    self.main_thread.label_img.setScaledContents(False)  # 确保 QLabel 不会拉伸图像以填满整个标签，保持宽高比
+                    
                     if consecutive_ones_count < 3:
                         start_time = time.time()
                         pred = self.predict_roi_img.predict_img(roi_img)
@@ -250,10 +253,13 @@ class show_roi_thread(QThread):
                         consecutive_ones_count +=1
                         cv2.imwrite("815.png",binary_img)
                     elif consecutive_ones_count == 3 :
-                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
+                    # elif consecutive_ones_count < 100 :
+                        # wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
+                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img,int_array_plan)# 获取预测的伤口边缘数据
                         height, width = multi_pred_img.shape
                         bytes_per_line = width
                         q_image = QImage(multi_pred_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+                        # q_image = QImage(wound_shape_data.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
                         # 在 QLabel 中显示图像，并保持原比例
                         self.main_thread.label_suturePoint.setPixmap(
                             QPixmap.fromImage(
@@ -278,13 +284,17 @@ class show_roi_thread(QThread):
                     # 连续获取三次kinect图像进而进行路径规划--防止单张图像预测效果不好,以或运算，只要预测到的roi区域都渲染
                     consecutive_ones_count +=1
                     if consecutive_ones_count == 3 :
-                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
-                        print('wound_shape_data.shape',wound_shape_data.shape)
-                        print('multi_pred_img.shape',multi_pred_img.shape)
-                        print('final_img.shape',final_img.shape)
+                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img,int_array_plan)# 获取预测的伤口边缘数据
+                        cv2.imwrite("wound_shape_data.jpg",wound_shape_data)
+                        cv2.imwrite("multi_pred_img.jpg",multi_pred_img)
+                        cv2.imwrite("final_img.jpg",final_img)
+                        # final_img *=255
+                        # cv2.imwrite("final_img255.jpg",final_img)
                         height, width = multi_pred_img.shape
                         bytes_per_line = width
                         q_image = QImage(multi_pred_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+                        # q_image = QImage(wound_shape_data.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+
                         # 在 QLabel 中显示图像，并保持原比例
                         self.main_thread.label_suturePoint.setPixmap(
                             QPixmap.fromImage(
@@ -334,7 +344,7 @@ class show_roi_thread(QThread):
                     # cv2.imwrite(filePath+"roi_pred.png",pred)
                     binary_img = np.uint8(pred)
                     print("测试停止地点")
-                    wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img)# 获取预测的伤口边缘数据
+                    wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img,int_array_plan)# 获取预测的伤口边缘数据
                     # cv2.imwrite("122.png",wound_shape_data)
                     # cv2.imwrite("123.png",multi_pred_img)
                     # 将得到的pred图像扩充为1920x1080大小的图像，然后保存其roi位置信息到本地，然后进行函数拟合得到分段点
@@ -357,12 +367,27 @@ class show_roi_thread(QThread):
                         # func_data.append([i[0],i[1],0.028])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                         # func_data.append([i[0],i[1],0.078])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                         func_data.append([i[0],i[1],0.052])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
+                        # func_data.append([i[0],i[1],i[2]])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                     plan_wound_data = self.kinect.getTurePointsRm65(func_data,5)
                     plan_data_update = self.kinect.offSet_planData(plan_wound_data)
                     np.savetxt(filePath+"wound_data_rm65.txt",func_data, fmt='%.6f')
                     np.savetxt(filePath+"plan_data.txt",plan_wound_data, fmt='%.6f')
                     np.savetxt(filePath+"plan_data_update.txt",plan_data_update, fmt='%.6f')
                     cv2.imwrite(filePath+'wound_predict.png', final_canvas)# 保存最终图像
+                    
+                    
+                    self.kinect.save_point_cloud_cyl(run_record_path)
+                    readPath = "data\\points\\8-5\\calibrationAll\\"
+                    
+                    if os.path.exists(run_record_path+"\\result_cameraPts_cyl.txt"):
+                        float_array_plan = data_trans_cal(readPath,run_record_path)
+                        # 创建一个浮点数的二维数组
+                        float_array = np.array(float_array_plan)
+                        # 将浮点数转换为整数
+                        int_array_plan = float_array.astype(int)
+                        for i in range(len(int_array_plan)):
+                            int_array_plan[i][0]-=x
+                            int_array_plan[i][1]-=y
                     self.change_show_status(1)
 
     @pyqtSlot(int)
@@ -490,8 +515,10 @@ class Emergencystop(QThread):
 # 自定义RM65机械臂运动线程类
 class WorkThread(QThread):
     stop_signal = pyqtSignal()
+    pause_signal = pyqtSignal(int)
+    statue_signal = pyqtSignal(int)  # 用于控制缝合状态，打结或不打结
     rm65_stop_signal = pyqtSignal()# 用于停止机械臂运动--状态信号的发出
-
+    motorIswork = True
     def __init__(self,main_thread,points):
         super().__init__()
         self.rm65 = main_thread.rm65
@@ -502,9 +529,23 @@ class WorkThread(QThread):
         self.status_thread = None
         self.points = points
 
+        self.flage_statue = 0
+
         self.stop_signal.connect(self.Emergencystop)
+        self.pause_signal.connect(self.change_flag_pause)
+        self.statue_signal.connect(self.change_flag_statue)
 
 
+    @pyqtSlot(int)
+    def change_flag_pause(self,signal):
+        self.flag_pause = signal
+
+    @pyqtSlot(int)
+    def change_flag_statue(self,signal):
+        self.flage_statue = signal
+
+
+    flag_pause = 1
     def run(self):
         self.start_time = time.time()
         # 压力传感器先注销--暂时用不到这个进行状态判断  2024.5.8
@@ -517,42 +558,191 @@ class WorkThread(QThread):
         point_index = 1
         ret = 0
         with open(self.main_thread.run_record_path+"record_1.txt", 'a', newline='') as txtfile:
-            for index, point in enumerate(self.points): # 机械臂运动show_wound_path_signal
-                # self.show_kinect_thread.show_status_signal.emit(1)
-                self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
-                print(f"到达第{point_index}个运动点")
-                point_index+=1
-                # 开始缝合
+            """
+            # for index, point in enumerate(self.points): # 机械臂运动show_wound_path_signal
+            #     # self.show_kinect_thread.show_status_signal.emit(1)
+            #     self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
+            #     print(f"到达第{point_index}个运动点")
+            #     point_index+=1
+            #     # 开始缝合
+            #     motor_signal = motorRun()
+            #     if motor_signal == "motor_run_successful":
+            #         print("缝合完成，开始抬升")
+            #         temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
+            #         # temp_point.pz = 1 * 0.01 + temp_point.pz
+            #         temp_point.px -= 0.006
+            #         temp_point.pz = (21 - index * 2) * 0.007 + temp_point.pz
+            #         # temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
+            #         # temp_point.px -= 0.005
+            #         # 订书机模式
+            #         # temp_point.pz = (5) * 0.01 + temp_point.pz
+            #         # ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+            #         if index==0:
+            #             ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+            #         else:
+            #             # 第一针之后的缝合，需要启动状态判断子线程，进行状态判断
+            #             # self.show_kinect_thread.show_status_signal.emit(2)
+            #             # print(f"temp_point: {temp_point.px},py:{temp_point.py},pz: {temp_point.pz},rx:{temp_point.rx},ry:{temp_point.ry},rz:{temp_point.rz}")
+            #             # print(f"goal_point: {point.px},py:{point.py},pz: {point.pz},rx:{point.rx},ry:{point.ry},rz:{point.rz}")
+            #             ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+            #         if ret != 0 :
+            #             print("第"+str(index)+" 点，该点不可达:" + str(ret))
+            #             sys.exit()
+            #     print(f"到达第{point_index}个运动点")
+            #     point_index+=1
+            """
+            if self.flage_statue == 0:
+                i = 0
+                count = 0
+                flag = 1
+                ifIsSecond = False
+                while True and count < len(self.points):
+                    # point = self.points[i]
+                    # temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
+                    if self.flag_pause == 1:
+                        point = self.points[count]
+                        ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
+                        if ret != 0:
+                            print("Movec_Cmd 1 失败:" + str(ret))
+                            sys.exit()
+                        print(f"到达第{point_index}个运动点")
+                        i+=1
+                        count += 1
+                        point_index+=1
+                        # 开始缝合
+                        motor_signal = motorRun()
+                        if motor_signal == "motor_run_successful":
+                            self.motorIswork = True
+                            print(f"第{count}针缝合完成，开始抬升")
+                            temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
+                            temp_point.px -= 0.006
+                            temp_point.pz = max((21 - (i-1) * 2) * 0.01 + temp_point.pz,0.051)
+                            print(temp_point.pz)
+                            if ifIsSecond==True:
+                                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 10, 0, 1)
+                                ifIsSecond = False
+                            else:
+                                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                            if ret != 0:
+                                print("Movec_Cmd 1 失败:" + str(ret))
+                                sys.exit()
+                            if ret != 0 :
+                                print("第"+str(point_index)+" 点，该点不可达:" + str(ret))
+                                sys.exit()
+                            if i==1:
+                                print("进入第一针的打结状态")
+                                temp_point.pz = max(temp_point.pz - 0.193,0.051)
+                                time.sleep(0.5)
+                                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 30, 0, 1)
+                                if ret != 0:
+                                    print("Movec_Cmd 1 失败:" + str(ret))
+                                    sys.exit()
+                                time.sleep(0.5)
+                                motor_signal = motorRun()
+                                motor_signal = motorRun()
+                                time.sleep(2)
+                                temp_point.pz = temp_point.pz + 0.193
+                                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 10, 0, 1)
+                                if ret != 0:
+                                    print("Movec_Cmd 1 失败:" + str(ret))
+                                    sys.exit()
+                                time.sleep(3)
+                        else:
+                            self.motorIswork = False
+                            print("电机缝合失败")
+                            self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)
+                            sys.exit()
+                        temp = i
+                        print(f"到达第{point_index}个运动点")
+                        point_index+=1
+                        flag = 0
+                    elif self.flag_pause == 0:
+                        if flag == 0:  # 进入换针阶段
+                            print("第一段尾针打结")
+                            temp_point.rz = 3.14
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                            if ret != 0:
+                                print("Movec_Cmd 1 失败:" + str(ret))
+                                sys.exit()
+                            temp_point.pz = max(temp_point.pz - (21 - (temp-1) * 2) * 0.01 + 0.02, 0.051)
+                            flag += 1
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 7, 0, 1)
+                            if ret != 0:
+                                    print("Movec_Cmd 1 失败:" + str(ret))
+                                    sys.exit()
+                            time.sleep(2)
+                            motor_signal = motorRun()
+                            motor_signal = motorRun()
+                            temp_point.px = temp_point.px + 0.03
+                            time.sleep(1)
+                            temp_point.pz = temp_point.pz + 0.02
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 3, 0, 1)
+                            if ret != 0:
+                                print("Movec_Cmd 1 失败:" + str(ret))
+                                sys.exit()
+                            ifIsSecond = True
+                        i = 0
+                
+                print("尾针打结")
+                temp_point.rz = 3.14
+                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                if ret != 0:
+                    print("Movec_Cmd 1 失败:" + str(ret))
+                    sys.exit()
+                temp_point.pz = max(temp_point.pz - (21 - (temp-1) * 2) * 0.01 + 0.02, 0.051)
+                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 7, 0, 1)
+                if ret != 0:
+                    print("Movec_Cmd 1 失败:" + str(ret))
+                    sys.exit()
+                time.sleep(2)
                 motor_signal = motorRun()
-                if motor_signal == "motor_run_successful":
-                    print("缝合完成，开始抬升")
-                    temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
-                    # temp_point.pz = 1 * 0.01 + temp_point.pz
-                    temp_point.px -= 0.006
-                    temp_point.pz = (21 - index * 3) * 0.005 + temp_point.pz
-                    # temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
-                    # temp_point.px -= 0.005
-                    # 订书机模式
-                    # temp_point.pz = (5) * 0.01 + temp_point.pz
-                    # ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
-                    if index==0:
-                        ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
-                    else:
-                        # 第一针之后的缝合，需要启动状态判断子线程，进行状态判断
-                        # self.show_kinect_thread.show_status_signal.emit(2)
-                        # print(f"temp_point: {temp_point.px},py:{temp_point.py},pz: {temp_point.pz},rx:{temp_point.rx},ry:{temp_point.ry},rz:{temp_point.rz}")
-                        # print(f"goal_point: {point.px},py:{point.py},pz: {point.pz},rx:{point.rx},ry:{point.ry},rz:{point.rz}")
-                        ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
-                    if ret != 0 :
-                        print("第"+str(index)+" 点，该点不可达:" + str(ret))
-                        sys.exit()
-                print(f"到达第{point_index}个运动点")
-                point_index+=1
-            self.end_time = time.time()
-            txtfile.write(str("50")+"  "+str(self.end_time-self.start_time)+str("")+'\n')
-            txtfile.flush()  # 为了将缓冲区中的内容强制写入
-        print("the spend time is :",self.end_time-self.start_time)
-        # self.show_kinect_thread.stop()#缝合完成默认停止
+                motor_signal = motorRun()
+                temp_point.px = temp_point.px + 0.03
+                time.sleep(1)
+                temp_point.pz = temp_point.pz + 0.02
+                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 3, 0, 1)
+                if ret != 0:
+                    print("Movec_Cmd 1 失败:" + str(ret))
+                    sys.exit()
+                self.end_time = time.time()
+                txtfile.write(str("50")+"  "+str(self.end_time-self.start_time)+str("")+'\n')
+                txtfile.flush()  # 为了将缓冲区中的内容强制写入
+                print("the spend time is :",self.end_time-self.start_time)
+                print(f"程序停止时间为：{self.end_time}")
+           
+            elif self.flage_statue == 1:
+                for index, point in enumerate(self.points): # 机械臂运动show_wound_path_signal
+                # self.show_kinect_thread.show_status_signal.emit(1)
+                    self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
+                    print(f"到达第{point_index}个运动点")
+                    point_index+=1
+                    # 开始缝合
+                    motor_signal = motorRun()
+                    if motor_signal == "motor_run_successful":
+                        print("缝合完成，开始抬升")
+                        temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
+                        # temp_point.pz = 1 * 0.01 + temp_point.pz
+                        temp_point.px -= 0.006
+                        temp_point.pz = (21 - index * 2) * 0.007 + temp_point.pz
+                        # temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
+                        # temp_point.px -= 0.005
+                        # 订书机模式
+                        # temp_point.pz = (5) * 0.01 + temp_point.pz
+                        # ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                        if index==0:
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                        else:
+                            # 第一针之后的缝合，需要启动状态判断子线程，进行状态判断
+                            # self.show_kinect_thread.show_status_signal.emit(2)
+                            # print(f"temp_point: {temp_point.px},py:{temp_point.py},pz: {temp_point.pz},rx:{temp_point.rx},ry:{temp_point.ry},rz:{temp_point.rz}")
+                            # print(f"goal_point: {point.px},py:{point.py},pz: {point.pz},rx:{point.rx},ry:{point.ry},rz:{point.rz}")
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                        if ret != 0 :
+                            print("第"+str(index)+" 点，该点不可达:" + str(ret))
+                            sys.exit()
+                    print(f"到达第{point_index}个运动点")
+                    point_index+=1
+            # self.show_kinect_thread.stop()#缝合完成默认停止
         self.stop()
 
 

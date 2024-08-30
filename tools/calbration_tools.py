@@ -115,18 +115,35 @@ def proj_pts2plane(src_pts, plane_info):
     return res
 
 
-def plane_fitting(point_set):
-    eigen_vals, eigen_vecs = pca(point_set)
+def plane_fitting(point_set,pts_center_all):
+    if isinstance(pts_center_all,tuple):
+        eigen_vals, eigen_vecs = pca(point_set)
 
-    min_eigen_val_index = eigen_vals.argmin()  # np.argmin()查找最小值，并返回其下标
-    vec = eigen_vecs[::, min_eigen_val_index]  # vec为最小特征值对应的特征向量，用于代表平面的法向量
+        min_eigen_val_index = eigen_vals.argmin()  # np.argmin()查找最小值，并返回其下标
+        vec = eigen_vecs[::, min_eigen_val_index]  # vec为最小特征值对应的特征向量，用于代表平面的法向量
 
-    pts_center = np.mean(point_set, axis=0)
-    plane_coef = get_plane_info(pts_center, vec)
+        pts_center = np.mean(point_set, axis=0)
+        # print("pts_center的类型为：",type(pts_center))
+        plane_coef = get_plane_info(pts_center, vec)
+        
+        plane_coef = pts_center_all
 
-    pts_proj = proj_pts2plane(point_set, plane_coef)
+        pts_proj = proj_pts2plane(point_set, plane_coef)
 
-    return pts_proj
+        return pts_proj
+    else:
+        eigen_vals, eigen_vecs = pca(point_set)
+
+        min_eigen_val_index = eigen_vals.argmin()  # np.argmin()查找最小值，并返回其下标
+        vec = eigen_vecs[::, min_eigen_val_index]  # vec为最小特征值对应的特征向量，用于代表平面的法向量
+
+        pts_center = np.mean(point_set, axis=0)
+        plane_coef = get_plane_info(pts_center, vec)
+        # print("plane_coef的类型为：",type(plane_coef))
+        # print("pts_center的类型为：",type(pts_center))
+        pts_proj = proj_pts2plane(point_set, plane_coef)
+
+        return pts_proj, plane_coef
 
 
 def pts_coplane(pts):
@@ -204,7 +221,7 @@ def select_chessboard_pointcloud(img, cameraPts, color_pts_xy, corners):
 def homography_trans(filtered_pts_3d, filtered_pts_2d, filtered_corners):
     # save_point_cloud_to_pcd(filtered_pts_3d, "origin_point_cloud.pcd")
     #得到计算特征矩阵后的1000*3，貌似是平移到有高度的平面上
-    adjusted_pts = plane_fitting(filtered_pts_3d)
+    adjusted_pts = plane_fitting(filtered_pts_3d,"_")
 
     # save_point_cloud_to_pcd(adjusted_pts, "adjusted_point_cloud.pcd")
 
@@ -280,3 +297,19 @@ def read_data(filePath, fileNmae):
     img = cv.imread(img_path)
 
     return camera_pts, color_pts_xy, img, corners,copy_img
+
+
+
+# cyl
+def read_data_cyl(filePath, fileNmae):
+    """
+    将文件路径和文件名下面的深度坐标文件和颜色坐标文件和图片本身读入
+    
+    """
+    camera_space_path = filePath + "\\" + fileNmae + "_cameraPts_cyl.txt"
+    color_space_path = filePath + "\\" + fileNmae + "_colorPts_cyl.txt"
+    camera_pts = np.loadtxt(camera_space_path)
+    # print(camera_pts.shape)
+    color_pts_xy = np.loadtxt(color_space_path)
+    return camera_pts, color_pts_xy
+# cyl

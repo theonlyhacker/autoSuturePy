@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import sys
+import time
 import cv2 as cv
 # 当前文件运行，也可以用python -m tools.calibration 这样运行，将当前文件作为包
 
@@ -272,23 +273,23 @@ def cal_trans_data(edge_point):
     print("边缘点的个数为",len(data_in_kinect))
    
     print("边缘点的相机坐标为：")
-    print(data_in_kinect)
+    # print(data_in_kinect)
     result = []
     for i in data_in_kinect:
         data_in_rm = transform_point(i,trans_martix)
         # print(f"data in kinct:{i}")
-        print(f"data in rm65:{data_in_rm}")
+        # print(f"data in rm65:{data_in_rm}")
         result.append(data_in_rm)
     print(f"the size of pointd in rm65: {len(result)}")
     return result
-'''
+
 # cyl
 def transform_rm_65(point,transformation_matrix):
     point_homogeneous = np.append(point,1)
     transformed_point_homogeneous = np.dot(np.linalg.inv(transformation_matrix),point_homogeneous)
     transformed_point = transformed_point_homogeneous[:3] * transformed_point_homogeneous[3]
     return transformed_point
-
+'''
 # def data_trans_cal(rm_65_point)
 def data_trans_cal(readPath):
     rm_65_point = 'data/points/08-14/first/plan_data_update.txt'
@@ -306,29 +307,102 @@ def data_trans_cal(readPath):
 
 # cyl
 '''
+def data_trans_cal(readPath_matrix,read_path_point):
+    # rm_65_point = readPath+'plan_data.txt'
+    # rm_65_point = read_path_point + 'first' + 'plan_data_update.txt'
+    rm_65_point = os.path.join(read_path_point,'plan_data.txt')
+    
+    
+    '''
+    kinectCapture = KinectCapture()
+    color_image,depth_img = kinectCapture.get_frames()
+    depth_frame = kinectCapture.kinect.get_last_depth_frame()
+    # 获取相机空间点
+    camera_space_points = kinectCapture.get_camera_space_points(depth_frame)
+    # 获取颜色空间点
+    color_space_points = kinectCapture.get_color_space_points(depth_frame)
+
+    filter_pts_3d,filter_pts_2d = [],[]
+
+    for i,point in enumerate(camera_space_points):
+        x,y,z = float(point.x),float(point.y),float(point.z)
+        if not (np.isinf(x) or np.isinf(y) or np.isinf(z)):  # 如果点的坐标不是inf或-inf
+                color_space_point = color_space_points[i]
+                x_c, y_c = float(color_space_point.x), float(color_space_point.y)
+                if 0 <= x_c < color_image.shape[1] and 0 <= y_c < color_image.shape[0]:
+                    color = [x_c,y_c]
+                    point = [point.x, point.y, point.z]
+                    filter_pts_3d.append(point)
+                    filter_pts_2d.append(color)
+    filter_pts_3d,filter_pts_2d = np.array(filter_pts_3d),np.array(filter_pts_2d)
+    '''
+    filter_pts_3d,filter_pts_2d = read_data_cyl(read_path_point, "result")
+    # print('filter_pts_2d.shape',filter_pts_2d.shape)
+    # print('filter_pts_3d.shape',filter_pts_3d.shape)
+
+    
+
+    trans_matrix = np.loadtxt(readPath_matrix+'trans_new.txt')
+    result = []
+    with open(rm_65_point,'r') as file:
+        lines = file.readlines()
+        for l in lines:
+            points_xyz = np.array([float(val) for val in l.strip().split()[:3]])
+            data_in_depth = transform_rm_65(points_xyz,trans_matrix)
+            result.append(data_in_depth)
+        result = np.array(result)
+    
+    adjusted_pts,points_center_all = plane_fitting(filter_pts_3d,"_")
+    adjusted_pts_less = plane_fitting(result,points_center_all)
+    eigen_vals,eigen_mat = pca(adjusted_pts)
+    min_pos = eigen_vals.argmin()
+
+    pca_res = np.matmul(adjusted_pts,eigen_mat)
+    pca_res_less = np.matmul(adjusted_pts_less,eigen_mat)
+    pca_res = np.delete(pca_res,[min_pos],axis=1)
+    pca_res_less = np.delete(pca_res_less,[min_pos],axis=1)
+
+    homography_mat,_ = cv.findHomography(filter_pts_2d,pca_res)
+    # 这行代码使用perspectiveTransform函数对filtered_pts_2d进行透视变换，使用homography_mat作为变换矩阵，得到变换后的点坐标数组warped_all。
+    warped_all = cv.perspectiveTransform(np.expand_dims(filter_pts_2d, axis=0), homography_mat)[0]
+
+    error = (warped_all - pca_res) * 1e3
+    # print('warped_all rms:', get_rms(error))
+
+    homography_mat_inv = np.linalg.inv(homography_mat)
+    warped_res = cv.perspectiveTransform(np.expand_dims(pca_res_less,axis=0),homography_mat_inv)
+    warped_res = np.squeeze(warped_res)
+    # print(warped_res)
+    return warped_res
 
 
 if __name__ == '__main__':
     from getKinect import KinectCapture
     from calbration_tools import *
     print("---------------------")
-    readPath = "data\\points\\8-5\\calibrationAll\\"
+    readPath = "data\\points\\8-5\\calibrationRed\\"
+
+    t = time.strftime('%m-%d', time.localtime())
+    file_index = "first"
+    run_record_path = "data\\points\\"+t+"\\"+file_index+"\\"
     1 # 保存点云信息
     # os.makedirs(os.path.join(readPath), exist_ok=True)
     # kinect = KinectCapture()
     # kinect.save_point_cloud(filename=readPath)
     # sys.exit()
     2
-    # record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
-    # exit()
+    record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
+    exit()
     # # 记录机械臂在这些点的位置信息得到robot_Pts.txt文档，记录顺序与角点顺序一致
     # 3
     # save_trans_martix(readPath) #然后运行该方法得到其转换矩阵
     # exit()
     # 4--测试
-    edge_point = [[1078, 458],[1222, 390]]
+    edge_point = [[760.03648706,349.95831667],[780.59977034,348.54209752],
+                  [801.35294001,347.29199446],[822.22347011,346.69202168],
+                  [843.29738312,346.71451462],[864.32438176,346.83895831],[885.40052939,346.92360397]]
     cal_trans_data(edge_point)# 传入像素数组，进行测试or计算--记得修改读取权重文件的路径
-    # data_trans_cal(readPath)
+    data_trans_cal(readPath,run_record_path)
 
     exit()
     # # 示例调用
