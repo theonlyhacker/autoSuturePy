@@ -19,7 +19,7 @@ class predictImg():
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.net = UNet(n_classes=1,n_channels=1)
         self.net.to(device=self.device)
-        self.net.load_state_dict(torch.load('pth\\roi\\unet_8_21_50.pth', map_location=self.device))
+        self.net.load_state_dict(torch.load('pth\\roi\\unet_09_05_50.pth', map_location=self.device))
         self.net.eval()
 
     # 图像预测

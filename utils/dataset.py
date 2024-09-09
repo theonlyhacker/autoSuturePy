@@ -32,6 +32,7 @@ class ISBI_Loader(Dataset):
 
         image = cv2.imread(image_path)
         label = cv2.imread(label_path)
+        # print('label.shape',label.shape)
         # get roi 保存的时候只保存了roi区域，因此不需要这里再筛选 --modify by liuchao 3-7
         # x,y,w,h= 1020,500,300,130
         # image = image[y:y+h, x:x+w]
@@ -40,6 +41,9 @@ class ISBI_Loader(Dataset):
         # # 将数据转为单通道的图片
         # 原图是BGR还是RGB？
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        print(label.shape)
+        if label is None or label.size == 0:
+            raise ValueError("Label 图像加载失败或为空")
         label = cv2.cvtColor(label, cv2.COLOR_BGR2GRAY)
         # cv2.imshow("image",image)
         # cv2.imshow("label",label)

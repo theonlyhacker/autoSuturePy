@@ -90,7 +90,7 @@ def train_net(net, device, train_data_path,test_data_path, epochs=50, batch_size
             best_loss = mean_test_loss
             #只保存模型参数
             CUR_PATH=os.path.dirname(os.path.realpath(__file__))
-            save_pth_path = os.path.join(CUR_PATH, "pth\\roi\\unet_8_27_50.pth")
+            save_pth_path = os.path.join(CUR_PATH, "pth\\roi\\unet_09_05_50.pth")
             torch.save(net.state_dict(), save_pth_path)
         writer.add_scalar("Loss/test", mean_test_loss.item(), global_step)
         print("epoch: ", epoch + 1, "  global_step: ", global_step, '   Loss/test', mean_test_loss.item())
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     CUR_PATH=os.path.dirname(os.path.realpath(__file__))
     # print("CUR_PATH",CUR_PATH)
     # exit(0)
-    filepath = "data\\points\\08-21\\first\\teach\\data"
+    filepath = "data\\points\\09-05\\first\\teach\\data"
     # filepath = 'data\\points\\8-8trainSource\\data'
     train_data_path = os.path.join(CUR_PATH, filepath+"\\train\\")
     test_data_path = os.path.join(CUR_PATH, filepath+"\\test\\")

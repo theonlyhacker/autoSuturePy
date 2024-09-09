@@ -117,7 +117,7 @@ def data2labelme(parent_folder):
 
 if __name__ == "__main__":
     #for unet 为了打标签的图像集合
-    data2labelme("data\\points\\08-21\\first\\teach")
+    data2labelme("data\\points\\09-05\\first\\teach")
     # Example usage:
     # 未缝合好标签记录为0，缝合好标签记录为1
     # modify("data\\data\\status_train\\4-26-img\\collect_7", 45)

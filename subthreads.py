@@ -283,7 +283,7 @@ class show_roi_thread(QThread):
                         final_img = final_img | binary_img  # 按位或运算符
                     # 连续获取三次kinect图像进而进行路径规划--防止单张图像预测效果不好,以或运算，只要预测到的roi区域都渲染
                     consecutive_ones_count +=1
-                    if consecutive_ones_count == 3 :
+                    if consecutive_ones_count == 2 :
                         wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img,int_array_plan)# 获取预测的伤口边缘数据
                         cv2.imwrite("wound_shape_data.jpg",wound_shape_data)
                         cv2.imwrite("multi_pred_img.jpg",multi_pred_img)
@@ -345,6 +345,7 @@ class show_roi_thread(QThread):
                     binary_img = np.uint8(pred)
                     print("测试停止地点")
                     wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img,int_array_plan)# 获取预测的伤口边缘数据
+                    print("-------------",int_array_plan)
                     # cv2.imwrite("122.png",wound_shape_data)
                     # cv2.imwrite("123.png",multi_pred_img)
                     # 将得到的pred图像扩充为1920x1080大小的图像，然后保存其roi位置信息到本地，然后进行函数拟合得到分段点
@@ -363,14 +364,24 @@ class show_roi_thread(QThread):
                     # print(wound_point_3d)
                     # print("*"*20)
                     func_data=[]
+                    func_data_lower = []
                     for i in wound_point_3d:
                         # func_data.append([i[0],i[1],0.028])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                         # func_data.append([i[0],i[1],0.078])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                         func_data.append([i[0],i[1],0.052])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                         # func_data.append([i[0],i[1],i[2]])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
+                    for i in wound_point_3d:
+                        func_data_lower.append([i[0],i[1],i[2]])# # 由于目前伤口都在一个平面上，因此投影到一个面上进行拟合（仅限于体模这种特殊类型的伤口）
                     plan_wound_data = self.kinect.getTurePointsRm65(func_data,5)
+
+                    plan_data_lower = self.kinect.getTurePointsRm65(func_data_lower,5)
+
                     plan_data_update = self.kinect.offSet_planData(plan_wound_data)
                     np.savetxt(filePath+"wound_data_rm65.txt",func_data, fmt='%.6f')
+                    
+                    np.savetxt(filePath+"wound_data_lower_rm65.txt",func_data_lower, fmt='%.6f')
+
+                    np.savetxt(filePath+"plan_data_lower.txt",plan_data_lower, fmt='%.6f')
                     np.savetxt(filePath+"plan_data.txt",plan_wound_data, fmt='%.6f')
                     np.savetxt(filePath+"plan_data_update.txt",plan_data_update, fmt='%.6f')
                     cv2.imwrite(filePath+'wound_predict.png', final_canvas)# 保存最终图像
@@ -386,8 +397,8 @@ class show_roi_thread(QThread):
                         # 将浮点数转换为整数
                         int_array_plan = float_array.astype(int)
                         for i in range(len(int_array_plan)):
-                            int_array_plan[i][0]-=x
-                            int_array_plan[i][1]-=y
+                            int_array_plan[i][0]-=(x)
+                            int_array_plan[i][1]-=(y)
                     self.change_show_status(1)
 
     @pyqtSlot(int)
@@ -557,6 +568,8 @@ class WorkThread(QThread):
         # Movej_P_Cmd(SOCKHANDLE ArmSocket, POSE pose, byte v, float r, bool block);
         point_index = 1
         ret = 0
+        init_high = 23
+        every_phase = 2.5
         with open(self.main_thread.run_record_path+"record_1.txt", 'a', newline='') as txtfile:
             """
             # for index, point in enumerate(self.points): # 机械臂运动show_wound_path_signal
@@ -601,7 +614,15 @@ class WorkThread(QThread):
                     # temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
                     if self.flag_pause == 1:
                         point = self.points[count]
-                        ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
+                        if ifIsSecond==True:
+                            temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
+                            temp_point.pz = point.pz + 0.03
+                            temp_point.rz = 0
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 10, 0, 1)
+                            ifIsSecond = False
+                        else:
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
                         if ret != 0:
                             print("Movec_Cmd 1 失败:" + str(ret))
                             sys.exit()
@@ -616,22 +637,16 @@ class WorkThread(QThread):
                             print(f"第{count}针缝合完成，开始抬升")
                             temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
                             temp_point.px -= 0.006
-                            temp_point.pz = max((21 - (i-1) * 2) * 0.01 + temp_point.pz,0.051)
+                            temp_point.pz = max((init_high - (i-1) * every_phase) * 0.01 + temp_point.pz,0.051)
                             print(temp_point.pz)
-                            if ifIsSecond==True:
-                                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 10, 0, 1)
-                                ifIsSecond = False
-                            else:
-                                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
-                            if ret != 0:
-                                print("Movec_Cmd 1 失败:" + str(ret))
-                                sys.exit()
+                            ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 50, 0, 1)
+
                             if ret != 0 :
                                 print("第"+str(point_index)+" 点，该点不可达:" + str(ret))
                                 sys.exit()
                             if i==1:
                                 print("进入第一针的打结状态")
-                                temp_point.pz = max(temp_point.pz - 0.193,0.051)
+                                temp_point.pz = max(temp_point.pz - (init_high - 1.7) * 0.01,0.051)
                                 time.sleep(0.5)
                                 ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 30, 0, 1)
                                 if ret != 0:
@@ -641,12 +656,19 @@ class WorkThread(QThread):
                                 motor_signal = motorRun()
                                 motor_signal = motorRun()
                                 time.sleep(2)
-                                temp_point.pz = temp_point.pz + 0.193
+                                temp_point.pz = temp_point.pz + (init_high - 1.7) * 0.01
+                                print(temp_point.pz)
                                 ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 10, 0, 1)
                                 if ret != 0:
                                     print("Movec_Cmd 1 失败:" + str(ret))
                                     sys.exit()
                                 time.sleep(3)
+                                temp_point.pz = temp_point.pz - 0.01
+                                ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 10, 0, 1)
+                                if ret != 0:
+                                    print("Movec_Cmd 1 失败:" + str(ret))
+                                    sys.exit()
+                                time.sleep(1)
                         else:
                             self.motorIswork = False
                             print("电机缝合失败")
@@ -664,7 +686,7 @@ class WorkThread(QThread):
                             if ret != 0:
                                 print("Movec_Cmd 1 失败:" + str(ret))
                                 sys.exit()
-                            temp_point.pz = max(temp_point.pz - (21 - (temp-1) * 2) * 0.01 + 0.02, 0.051)
+                            temp_point.pz = max(temp_point.pz - (init_high - (temp-1) * every_phase) * 0.01 + 0.02, 0.051)
                             flag += 1
                             ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 7, 0, 1)
                             if ret != 0:
@@ -673,9 +695,9 @@ class WorkThread(QThread):
                             time.sleep(2)
                             motor_signal = motorRun()
                             motor_signal = motorRun()
-                            temp_point.px = temp_point.px + 0.03
+                            temp_point.px = temp_point.px + 0.01
                             time.sleep(1)
-                            temp_point.pz = temp_point.pz + 0.02
+                            temp_point.pz = temp_point.pz - 0.005
                             ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 3, 0, 1)
                             if ret != 0:
                                 print("Movec_Cmd 1 失败:" + str(ret))
@@ -689,7 +711,7 @@ class WorkThread(QThread):
                 if ret != 0:
                     print("Movec_Cmd 1 失败:" + str(ret))
                     sys.exit()
-                temp_point.pz = max(temp_point.pz - (21 - (temp-1) * 2) * 0.01 + 0.02, 0.051)
+                temp_point.pz = max(temp_point.pz - (init_high - (temp-1) * every_phase) * 0.01 + 0.02, 0.051)
                 ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 7, 0, 1)
                 if ret != 0:
                     print("Movec_Cmd 1 失败:" + str(ret))
@@ -697,9 +719,9 @@ class WorkThread(QThread):
                 time.sleep(2)
                 motor_signal = motorRun()
                 motor_signal = motorRun()
-                temp_point.px = temp_point.px + 0.03
+                temp_point.px = temp_point.px + 0.01
                 time.sleep(1)
-                temp_point.pz = temp_point.pz + 0.02
+                temp_point.pz = temp_point.pz - 0.005
                 ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, temp_point, 3, 0, 1)
                 if ret != 0:
                     print("Movec_Cmd 1 失败:" + str(ret))
@@ -708,12 +730,25 @@ class WorkThread(QThread):
                 txtfile.write(str("50")+"  "+str(self.end_time-self.start_time)+str("")+'\n')
                 txtfile.flush()  # 为了将缓冲区中的内容强制写入
                 print("the spend time is :",self.end_time-self.start_time)
-                print(f"程序停止时间为：{self.end_time}")
+                # 获取当前时间的时间戳
+                current_time = time.time()
+
+                # 将时间戳转换为本地时间的 struct_time 对象
+                local_time = time.localtime(current_time)
+
+                # 使用 strftime 将 struct_time 格式化为 "几时几分几秒" 格式
+                formatted_time = time.strftime("%H:%M:%S ", local_time)
+
+                print(f"当前时间是: {formatted_time}")
+                # print(f"程序停止时间为：{self.end_time}")
            
             elif self.flage_statue == 1:
                 for index, point in enumerate(self.points): # 机械臂运动show_wound_path_signal
                 # self.show_kinect_thread.show_status_signal.emit(1)
-                    self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
+                    ret = self.rm65.pDll.Movej_P_Cmd(self.rm65.nSocket, point, 50, 0, 1)# 向下运动到待缝合点
+                    if ret != 0:
+                        print("Movec_Cmd 1 失败:" + str(ret))
+                        sys.exit()
                     print(f"到达第{point_index}个运动点")
                     point_index+=1
                     # 开始缝合
@@ -723,7 +758,7 @@ class WorkThread(QThread):
                         temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
                         # temp_point.pz = 1 * 0.01 + temp_point.pz
                         temp_point.px -= 0.006
-                        temp_point.pz = (21 - index * 2) * 0.007 + temp_point.pz
+                        temp_point.pz = max((init_high - index * 2) * 0.01 + temp_point.pz,0.051)
                         # temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
                         # temp_point.px -= 0.005
                         # 订书机模式

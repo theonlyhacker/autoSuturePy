@@ -96,6 +96,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         float_joint = ctypes.c_float * 6
         joint = float_joint()
         str_buf = ctypes.create_string_buffer("autoSu".encode('utf-8'))
+
+        nRet = self.rm65.pDll.Set_Collision_Stage(self.rm65.nSocket, 8, 1)
+        print (nRet)
+
         self.rm65.pDll.Change_Tool_Frame(self.rm65.nSocket, str_buf, 1)
         current_tool_name = self.rm65.get_currentToolName()
         print("当前工具坐标系(修改之后):" + str(current_tool_name))

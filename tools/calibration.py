@@ -145,6 +145,14 @@ def plot_3d_from_file(filename):
     ax.set_ylabel('Y Label')
     ax.set_zlabel('Z Label')
 
+    max_range = max(max(x) - min(x), max(y) - min(y), max(z) - min(z))
+    mid_x = (max(x) + min(x)) * 0.5
+    mid_y = (max(y) + min(y)) * 0.5
+    mid_z = (max(z) + min(z)) * 0.5
+
+    ax.set_xlim(mid_x - max_range/2, mid_x + max_range/2)
+    ax.set_ylim(mid_y - max_range/2, mid_y + max_range/2)
+    ax.set_zlim(mid_z - max_range/2, mid_z + max_range/2)
     plt.show()
 
 def read_points(filename):
@@ -352,8 +360,8 @@ def data_trans_cal(readPath_matrix,read_path_point):
             result.append(data_in_depth)
         result = np.array(result)
     
-    adjusted_pts,points_center_all = plane_fitting(filter_pts_3d,"_")
-    adjusted_pts_less = plane_fitting(result,points_center_all)
+    adjusted_pts,points_center_all = plane_fitting_severalpoints(filter_pts_3d,"_")
+    adjusted_pts_less = plane_fitting_severalpoints(result,points_center_all)
     eigen_vals,eigen_mat = pca(adjusted_pts)
     min_pos = eigen_vals.argmin()
 
@@ -380,33 +388,31 @@ if __name__ == '__main__':
     from getKinect import KinectCapture
     from calbration_tools import *
     print("---------------------")
-    readPath = "data\\points\\8-5\\calibrationRed\\"
+    readPath = "data\\points\\09-04\\calibration\\rabbit\\"
 
     t = time.strftime('%m-%d', time.localtime())
     file_index = "first"
     run_record_path = "data\\points\\"+t+"\\"+file_index+"\\"
     1 # 保存点云信息
-    # os.makedirs(os.path.join(readPath), exist_ok=True)
-    # kinect = KinectCapture()
-    # kinect.save_point_cloud(filename=readPath)
-    # sys.exit()
+    os.makedirs(os.path.join(readPath), exist_ok=True)
+    kinect = KinectCapture()
+    kinect.save_point_cloud(filename=readPath)
+    sys.exit()
     2
-    record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
-    exit()
+    # record_chess_order(readPath)#首先运行该函数找到棋盘格角点的顺序及坐标信息
+    # exit()
     # # 记录机械臂在这些点的位置信息得到robot_Pts.txt文档，记录顺序与角点顺序一致
     # 3
     # save_trans_martix(readPath) #然后运行该方法得到其转换矩阵
     # exit()
     # 4--测试
-    edge_point = [[760.03648706,349.95831667],[780.59977034,348.54209752],
-                  [801.35294001,347.29199446],[822.22347011,346.69202168],
-                  [843.29738312,346.71451462],[864.32438176,346.83895831],[885.40052939,346.92360397]]
-    cal_trans_data(edge_point)# 传入像素数组，进行测试or计算--记得修改读取权重文件的路径
-    data_trans_cal(readPath,run_record_path)
+    # edge_point = [[766, 331],[829, 391]]
+    # cal_trans_data(edge_point)# 传入像素数组，进行测试or计算--记得修改读取权重文件的路径
+    # # data_trans_cal(readPath,run_record_path)
 
-    exit()
+    # exit()
     # # 示例调用
-    plot_3d_from_file(readPath+"\\wound\\wound_data_rm65.txt")
+    plot_3d_from_file(run_record_path+"wound_data_lower_rm65.txt")
     file_path = "data\\points\\7-8\\4th\\"
     camera_points_file = file_path + "camera_points.txt"
     robot_points_file = file_path + "robots_points.txt"

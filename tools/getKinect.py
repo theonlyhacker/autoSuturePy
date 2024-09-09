@@ -468,7 +468,7 @@ class KinectCapture:
         # poses[:, 1] -= 0.025 # 固定值方法 将y值统一减去0.02
         # 线性偏移量的方法
         # initial_offset = 0.022# 初始偏移值
-        initial_offset = 0.026# 初始偏移值
+        initial_offset = 0.032# 初始偏移值
         total_offset = 0.008# 总偏移量
         x_offset = 0.000
         individual_offset = total_offset / len(poses)# 计算每个点的偏移量
@@ -476,8 +476,8 @@ class KinectCapture:
         # individual_offset = 0
         # 调整后的 y 值
         for i in range(len(poses)):
-            # y_offset = initial_offset + i * individual_offset
-            y_offset = initial_offset
+            y_offset = initial_offset + i * individual_offset
+            # y_offset = initial_offset
             poses[i, 1] -= y_offset
             poses[i ,0] += x_offset
         return poses
@@ -569,7 +569,7 @@ def show_dis(file_path):
 
 if __name__ == "__main__":
     # 文件保存位置
-    file_path = "data\\points\\08-27\\first\\"
+    file_path = "data\\points\\08-30\\first\\"
     data = np.loadtxt(file_path + 'wound_data_rm65.txt')#特征点数据，kinect相机检索到的3d点集合
     wound_points_name = "plan_data.txt"
     # plan_points = kinect.getTurePointsRm65(data,num_segments=10)##还存在问题，待修改
