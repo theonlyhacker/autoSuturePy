@@ -18,6 +18,7 @@ import numpy as np
 from tools.calibration import cal_trans_data,data_trans_cal
 import save_load_duijiaodian
 import threading
+from TrajectoryFromGail.use_model import get_trajectory
 
 # roi区域--统一在这里进行更改--也可以用信号和槽的方式进行传递？？？
 # x,y,w,h = 1020,451,150,40 #--短粗线--
@@ -25,7 +26,7 @@ t = time.strftime('%m-%d', time.localtime())
 file_index = "first"
 run_record_path = "data\\points\\"+t+"\\"+file_index+"\\"
 if os.path.exists(run_record_path+"origin\\origin_0_circle.txt"):
-    x,y,w,h = save_load_duijiaodian.load_points_from_file(run_record_path+"origin\\origin_0_circle.txt") # s曲线部分c--
+    x1,y1,w,h = save_load_duijiaodian.load_points_from_file(run_record_path+"origin\\origin_0_circle.txt") # s曲线部分c--
 # x,y,w,h = 1064,504,330,50 # s曲线整个--
 # x,y,w,h = 1263,380,202,80#兔子
 # Lookup table for CRC calculation
@@ -209,7 +210,7 @@ class show_roi_thread(QThread):
         final_img = None  # 用于叠加三张图像的变量
         origin_img = None
         if os.path.exists(run_record_path+"origin\\origin_0_circle.txt"):
-            x,y,w,h = save_load_duijiaodian.load_points_from_file(run_record_path+"origin\\origin_0_circle.txt") # s曲线部分c--
+            x1,y1,w,h = save_load_duijiaodian.load_points_from_file(run_record_path+"origin\\origin_0_circle.txt") # s曲线部分c--
 
         # cyl
         # self.kinect.save_point_cloud_cyl(run_record_path,color)
@@ -219,7 +220,7 @@ class show_roi_thread(QThread):
             color,depth = self.kinect.get_frames()
             # 找到的第一张非空图片用来跟新视觉显示区域，其他的用来判断状态
             if color is not None:
-                roi_img = color[y:y+h, x:x+w].copy()
+                roi_img = color[y1:y1+h, x1:x1+w].copy()
                 if self.show_status == 0:
                     # print('状态0')
                     scale_img = roi_img.copy()
@@ -255,7 +256,7 @@ class show_roi_thread(QThread):
                     elif consecutive_ones_count == 3 :
                     # elif consecutive_ones_count < 100 :
                         # wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img)# 获取预测的伤口边缘数据
-                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img,int_array_plan)# 获取预测的伤口边缘数据
+                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img,int_array_plan,data_plan)# 获取预测的伤口边缘数据
                         height, width = multi_pred_img.shape
                         bytes_per_line = width
                         q_image = QImage(multi_pred_img.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
@@ -284,7 +285,7 @@ class show_roi_thread(QThread):
                     # 连续获取三次kinect图像进而进行路径规划--防止单张图像预测效果不好,以或运算，只要预测到的roi区域都渲染
                     consecutive_ones_count +=1
                     if consecutive_ones_count == 2 :
-                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img,int_array_plan)# 获取预测的伤口边缘数据
+                        wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(final_img,int_array_plan,data_plan)# 获取预测的伤口边缘数据
                         cv2.imwrite("wound_shape_data.jpg",wound_shape_data)
                         cv2.imwrite("multi_pred_img.jpg",multi_pred_img)
                         cv2.imwrite("final_img.jpg",final_img)
@@ -336,21 +337,24 @@ class show_roi_thread(QThread):
                     #     self.count = 0
                     #     self.rm65.pDll.Move_Stop_Cmd(self.rm65.nSocket,1)#停止机械臂运动
                     #     self.change_show_status(1)
-                elif self.show_status == 3:
+                elif self.show_status == 3: 
                     print('状态3')
                     # 暂时用于路径点规划--标定等函数
                     filePath = self.main_thread.run_record_path#数据记录路径统一在mian线程中定义
                     pred = self.predict_roi_img.predict_img(roi_img)
+
+                    data_plan = []
+                    
                     # cv2.imwrite(filePath+"roi_pred.png",pred)
                     binary_img = np.uint8(pred)
                     print("测试停止地点")
-                    wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img,int_array_plan)# 获取预测的伤口边缘数据
+                    wound_shape_data,multi_pred_img = self.kinect.get_predict_wound_edge(binary_img,int_array_plan,data_plan)# 获取预测的伤口边缘数据
                     print("-------------",int_array_plan)
                     # cv2.imwrite("122.png",wound_shape_data)
                     # cv2.imwrite("123.png",multi_pred_img)
                     # 将得到的pred图像扩充为1920x1080大小的图像，然后保存其roi位置信息到本地，然后进行函数拟合得到分段点
                     final_canvas = np.ones((1080, 1920), dtype=np.uint8) * 255 # 创建一个白色的图像，大小为1920x1080--由于是二值化图像，因此创建模板是单通道的
-                    final_canvas[y:y+h, x:x+w] = wound_shape_data
+                    final_canvas[y1:y1+h, x1:x1+w] = wound_shape_data
                     edgePoints = []
                     __, labels, stats, _ = cv2.connectedComponentsWithStats(final_canvas, connectivity=8)# 寻找连通域  保存最大连通域内所有点，只有边缘点太少了，这里保存所有点
                     print("打的标签个数为",__)
@@ -386,6 +390,19 @@ class show_roi_thread(QThread):
                     np.savetxt(filePath+"plan_data_update.txt",plan_data_update, fmt='%.6f')
                     cv2.imwrite(filePath+'wound_predict.png', final_canvas)# 保存最终图像
                     
+                    # wangpu
+                    points = [] 
+                    with open(self.main_thread.pointsfilename, 'r') as file:  
+                        for line in file:  
+                            x_str, y_str = line.strip().split(',')  
+                            x, y = int(x_str), int(y_str)  
+                            points.append((x, y))  
+                    data_plan_raw = get_trajectory(image=filePath+'wound_predict.png', point1=points[0], point2=points[1], display=False)
+                    data_plan = []
+                    for my_point in data_plan_raw:
+                        if my_point not in data_plan:
+                            data_plan.append(my_point)
+                    print(data_plan)
                     
                     self.kinect.save_point_cloud_cyl(run_record_path)
                     readPath = "data\\points\\8-5\\calibrationAll\\"
@@ -397,8 +414,8 @@ class show_roi_thread(QThread):
                         # 将浮点数转换为整数
                         int_array_plan = float_array.astype(int)
                         for i in range(len(int_array_plan)):
-                            int_array_plan[i][0]-=(x)
-                            int_array_plan[i][1]-=(y)
+                            int_array_plan[i][0]-=(x1)
+                            int_array_plan[i][1]-=(y1)
                     self.change_show_status(1)
 
     @pyqtSlot(int)
@@ -568,7 +585,7 @@ class WorkThread(QThread):
         # Movej_P_Cmd(SOCKHANDLE ArmSocket, POSE pose, byte v, float r, bool block);
         point_index = 1
         ret = 0
-        init_high = 23
+        init_high = 24
         every_phase = 2.5
         with open(self.main_thread.run_record_path+"record_1.txt", 'a', newline='') as txtfile:
             """
@@ -758,7 +775,7 @@ class WorkThread(QThread):
                         temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
                         # temp_point.pz = 1 * 0.01 + temp_point.pz
                         temp_point.px -= 0.006
-                        temp_point.pz = max((init_high - index * 2) * 0.01 + temp_point.pz,0.051)
+                        temp_point.pz = max((init_high - index * 2.5) * 0.01 + temp_point.pz,0.051)
                         # temp_point.pz = (21 - index * 1.1) * 0.01 + temp_point.pz
                         # temp_point.px -= 0.005
                         # 订书机模式

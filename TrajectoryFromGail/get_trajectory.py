@@ -1,11 +1,11 @@
 from use_model import get_trajectory
 points = []  
-with open('cu.txt', 'r') as file:  
+with open('origin_0_circle.txt', 'r') as file:  
     for line in file:  
         x_str, y_str = line.strip().split(',')  
         x, y = int(x_str), int(y_str)  
         points.append((x, y))  
-data = get_trajectory(image="cu.jpg", point1=points[0], point2=points[1], display=False)
+data = get_trajectory(image="wound_predict.png", point1=points[0], point2=points[1], display=False)
 
 print(data)
 # 输出示例

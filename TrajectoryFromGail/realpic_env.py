@@ -214,7 +214,7 @@ class GridWorldEnv(gym.Env):
         # print(self.wound_width)
         self.refresh_types() 
         self.total_sum = 0
-        # print("start end:", self.start, self.ends)
+        print("start end:", self.start, self.ends)
         # self.start = (6, 4)
         # self.ends = [(6, 46)]
         # self.position = (0, 0)
@@ -599,7 +599,7 @@ def getTypes(gray_image, grid_size):
             # 根据中心点的颜色值对整个网格单元进行二值化
             if center_value < thresh:
                 change_signal = 1
-                if start_on and j>2 and i>0:
+                if start_on and j>1 and i>0:  #  
                     startP = (j-1, i)
                     start_on = 0
                 
@@ -610,7 +610,7 @@ def getTypes(gray_image, grid_size):
             else:
                 grids_types.append((j, i, 0))
         if change_signal == 0 and end_on and (not start_on):
-            endP = (int(wound_center[i-1]-wound_width[i-1]/2), i-1)
+            endP = (int(wound_center[i-1]-wound_width[i-1]/2 - 1), i-1)
             end_on = 0
         if i==grid_size[0]-1 and end_on:
             # 设置终点
@@ -625,4 +625,5 @@ def getTypes(gray_image, grid_size):
             wound_center.append(0)
         else:
             wound_center.append(np.ceil(np.average(wound_row))) # 向上取整，更有利于保证伤口完全缝合。但是也可以根据实际情况选择更好描述伤口中线的那一个
+        # startP = (1, 1)
     return wound_center, wound_width, grids_types, startP, endP

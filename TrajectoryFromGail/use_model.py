@@ -4,13 +4,13 @@ import gym
 import numpy as np
 import tensorflow as tf
 import argparse
-from network_models.policy_net import Policy_net
-from infrastructure.environment_wrapper import EnvironmentWrapper
-from infrastructure.utils import open_file_and_save
+from TrajectoryFromGail.network_models.policy_net import Policy_net
+from TrajectoryFromGail.infrastructure.environment_wrapper import EnvironmentWrapper
+from TrajectoryFromGail.infrastructure.utils import open_file_and_save
 env_wrapper = EnvironmentWrapper()
 def get_trajectory(image, point1, point2, display):
     tf.compat.v1.disable_eager_execution()
-    from realpic_env import GridWorldEnv
+    from TrajectoryFromGail.realpic_env import GridWorldEnv
     # PS:输入图像和两个端点坐标
     env = GridWorldEnv(img_path=image, up=point1, down=point2)
     env.seed(0)
@@ -21,16 +21,17 @@ def get_trajectory(image, point1, point2, display):
     
     with tf.compat.v1.Session() as sess:
         sess.run(tf.compat.v1.global_variables_initializer())
-        saver.restore(sess, f"trained_model/final_multi/model_CartPole-v0.ckpt")
+        saver.restore(sess, f"TrajectoryFromGail/trained_model/final_multi/model_CartPole-v0.ckpt")
         obs = env.reset()
         reward = 0
         success_num = 0
         frames = []
-        for iteration in range(1000):
+        for iteration in range(60):
             rewards = []
             data = []
             trajactory = []
             run_policy_steps = 0
+            print("iteration:", iteration)
             while True:  # run policy RUN_POLICY_STEPS which is much less than episode length
                 run_policy_steps += 1
                 obs = np.stack([obs]).astype(dtype=np.float32)  # prepare to feed placeholder Policy.obs
@@ -42,7 +43,7 @@ def get_trajectory(image, point1, point2, display):
                     if display:
                         frames.append(env.render(mode='rgb_array'))
                     data.append((obs, act, reward))
-                    trajactory.append((int(env.n_width-env.position[0]-1)*3+3//2, int(env.position[1])*3+3//2))
+                    trajactory.append((int(env.position[1])*3+3//2, int(env.n_width-env.position[0]-1)*3+6))
                 if done:
                     obs = env.reset()
                     break
@@ -50,12 +51,12 @@ def get_trajectory(image, point1, point2, display):
                     obs = next_obs
             if render:
                 break
-            if sum(rewards) >= 40:
+            if sum(rewards) >= 30:
                 success_num += 1
                 render = True
             else:
                 success_num = 0
-        if iteration == 999:
+        if iteration == 59:
             print("Failed to find the trajectory!")
         if len(frames) > 1 and display:
             display_frames_as_gif(frames)

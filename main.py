@@ -28,6 +28,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 from subthreads import *
 
+
+
 #测试提交
 
 # import save_load_duijiaodian
@@ -97,8 +99,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         joint = float_joint()
         str_buf = ctypes.create_string_buffer("autoSu".encode('utf-8'))
 
-        nRet = self.rm65.pDll.Set_Collision_Stage(self.rm65.nSocket, 8, 1)
-        print (nRet)
+        # nRet = self.rm65.pDll.Set_Collision_Stage(self.rm65.nSocket, 8, 1)
+        # print (nRet)
 
         self.rm65.pDll.Change_Tool_Frame(self.rm65.nSocket, str_buf, 1)
         current_tool_name = self.rm65.get_currentToolName()
@@ -114,7 +116,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # self.img_roi = [1064,504,330,50] #roi区域,S曲线整个
         # self.img_roi = [1030,648,185,46] #roi区域,s曲线部分c
         # self.img_roi = [0,0,1920,1080]
-        pointsfilename = self.run_record_path + "origin\\origin_0_circle.txt"
+        self.pointsfilename = self.run_record_path + "origin\\origin_0_circle.txt"
         # if not os.path.exists(pointsfilename):
         #     with open(pointsfilename, 'w') as f:
         #         f.write("0,0\n1920,1080")
@@ -193,7 +195,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         else:
             print("Timeout occurred while waiting for complete data.")
         # 关闭串口
-        # ser.close()
+        ser.close()
         
         # 示教模式下每次缝合都需要将当前位置记录下来，并且需要同步记录此时相机图像，压力传感器等多个数据源（未开发）
         if self.teach_flag and hasattr(self, 'rm65'):

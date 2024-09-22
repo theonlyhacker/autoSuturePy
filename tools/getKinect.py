@@ -15,6 +15,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import pandas as pd
 # from tools.calibration import data_trans_cal
 
+
 #滤波
 depthSize = 512*424
 
@@ -236,7 +237,7 @@ class KinectCapture:
         # cv2.imwrite(filename + 'result.png', color_result_image)
         return wound_point_3d
 
-    def get_predict_wound_edge(self, pred,int_array_plan):
+    def get_predict_wound_edge(self, pred,int_array_plan,data_plan):
             binary_img = np.uint8(pred)
             # cv2.RETR_EXTERNAL: 只检索最外层的轮廓。
             contours, _ = cv2.findContours(binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -287,6 +288,9 @@ class KinectCapture:
                             segment_points.append(suture_point2.astype(int))
                     # 在背景图像上绘制分段点，黑色
                 for point in int_array_plan:
+                    if 0 <= point[1] < background.shape[0] and 0 <= point[0] < background.shape[1]:
+                        background[point[1], point[0]] = 0
+                for point in data_plan:
                     if 0 <= point[1] < background.shape[0] and 0 <= point[0] < background.shape[1]:
                         background[point[1], point[0]] = 0
                 # for point in segment_points:
