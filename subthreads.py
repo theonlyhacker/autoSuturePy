@@ -546,6 +546,7 @@ class WorkThread(QThread):
     pause_signal = pyqtSignal(int)
     statue_signal = pyqtSignal(int)  # 用于控制缝合状态，打结或不打结
     rm65_stop_signal = pyqtSignal()# 用于停止机械臂运动--状态信号的发出
+    pause_signal_lc = pyqtSignal(int) #暂停按钮
     motorIswork = True
     def __init__(self,main_thread,points):
         super().__init__()
@@ -562,6 +563,7 @@ class WorkThread(QThread):
         self.stop_signal.connect(self.Emergencystop)
         self.pause_signal.connect(self.change_flag_pause)
         self.statue_signal.connect(self.change_flag_statue)
+        self.pause_signal_lc.connect(self.change_flag_puase_lc)
 
 
     @pyqtSlot(int)
@@ -572,7 +574,10 @@ class WorkThread(QThread):
     def change_flag_statue(self,signal):
         self.flage_statue = signal
 
-
+    @pyqtSlot(int)
+    def change_flag_puase_lc(self,signal):
+        self.pause_signal_lc = signal
+            
     flag_pause = 1
     def run(self):
         self.start_time = time.time()
@@ -771,6 +776,9 @@ class WorkThread(QThread):
                     # 开始缝合
                     motor_signal = motorRun()
                     if motor_signal == "motor_run_successful":
+                        while self.pause_signal_lc == 1:
+                            print("进入暂停阶段")
+                            time.sleep(1)#默认暂停2s
                         print("缝合完成，开始抬升")
                         temp_point = DevMsg(point.px,point.py,point.pz,point.rx,point.ry,point.rz)
                         # temp_point.pz = 1 * 0.01 + temp_point.pz

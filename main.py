@@ -101,6 +101,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # nRet = self.rm65.pDll.Set_Collision_Stage(self.rm65.nSocket, 8, 1)
         # print (nRet)
+        self.puase_lc = 1 #暂停功能
 
         self.rm65.pDll.Change_Tool_Frame(self.rm65.nSocket, str_buf, 1)
         current_tool_name = self.rm65.get_currentToolName()
@@ -313,8 +314,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         print("当前工具坐标系(修改之后):" + str(current_tool_name))
         # 启动机械臂运动线程
         points = []
-        # self.run_record_path = "data\\points\\08-08"
-        with open(self.run_record_path+'plan_data_update.txt', 'r') as file:
+        # self.run_record_path = "data\\points\\08-08 plan_data_update"
+        with open(self.run_record_path+'111.txt', 'r') as file:
             lines = file.readlines()#read data from txt 
             for line in lines:
                 points_xyz = [float(val) for val in line.strip().split()]
@@ -433,14 +434,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         
     # 示教停止
     def on_stopTeach(self):
-        # 停止示教
-        self.teach_flag = False
-        # 关闭连接
-        self.rm65.close()
-        # self.pressure_thread.stop()
-        self.record_info = ""
-        self.record_info_count = 0
-        print('资源已释放，示教结束')
+        print(f"进入暂停按钮{self.puase_lc}")
+        # 如果puase_lc==1，表示开始暂停
+        if self.puase_lc == 1:
+            print("开始暂停")
+            self.work_thread.change_flag_puase_lc(1)
+            self.puase_lc = 2
+        elif self.puase_lc == 2:
+            #如果==2，表示应该停止暂停
+            print("停止暂停")
+            self.work_thread.change_flag_puase_lc(2)
+            self.puase_lc = 1
+        # # 停止示教
+        # self.teach_flag = False
+        # # 关闭连接
+        # self.rm65.close()
+        # # self.pressure_thread.stop()
+        # self.record_info = ""
+        # self.record_info_count = 0
+        # print('资源已释放，示教结束')
 
     # 示教前图像信息采集
     def on_imgCollect(self):
